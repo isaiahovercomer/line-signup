@@ -27,6 +27,7 @@
   html, body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.6; -webkit-text-size-adjust: 100%; }
   button, input, textarea { font: inherit; color: inherit; }
   :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  [hidden] { display: none !important; }
 
   #app { max-width: 480px; margin: 0 auto; padding: 0 16px calc(120px + env(safe-area-inset-bottom)); }
 
@@ -41,6 +42,10 @@
   .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 700; }
   .tabs .n { font-size: 13px; color: var(--ink-2); margin-left: 4px; }
 
+  .subbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 14px; }
+  .back { background: none; border: 0; padding: 6px 0; font-size: 16px; color: var(--ink-2); cursor: pointer; }
+  .subbar h1 { font-size: 17px; margin: 0; }
+
   /* ---------- 票券（圖卡預覽） ---------- */
   .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: 0 1px 0 var(--rule), 0 14px 30px -18px rgba(28,40,64,.45); }
   .ticket .hero { width: 100%; aspect-ratio: 20 / 13; object-fit: cover; display: block; background: var(--rule); }
@@ -51,7 +56,6 @@
   .ticket dt { color: var(--ink-2); }
   .ticket dd { margin: 0; word-break: break-word; }
   .ticket .desc { color: var(--ink-2); font-size: 14px; margin: 12px 0 0; white-space: pre-wrap; word-break: break-word; }
-  /* 撕線與兩側缺口 */
   .ticket .perf { position: relative; height: 0; border-top: 2px dashed var(--rule); margin: 0 18px; }
   .ticket .perf::before, .ticket .perf::after { content: ""; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--sky); }
   .ticket .perf::before { left: -31px; }
@@ -59,6 +63,10 @@
   .ticket .stub { padding: 16px 22px 20px; display: flex; align-items: center; gap: 14px; }
   .ticket .stub .notch { width: 8px; align-self: stretch; background: var(--marigold); border-radius: 4px; }
   .ticket .stub .fake-btn { flex: 1; background: var(--line); color: #fff; text-align: center; font-weight: 700; padding: 11px; border-radius: 10px; }
+  .ticket .tally { display: flex; align-items: baseline; gap: 6px; }
+  .ticket .tally b { font-family: var(--serif); font-size: 34px; line-height: 1; }
+  .ticket .tally span { color: var(--ink-2); font-size: 14px; }
+  .ticket .tally .state { margin-left: auto; }
 
   .caption { color: var(--ink-2); font-size: 13px; text-align: center; margin: 10px 0 26px; }
 
@@ -66,41 +74,78 @@
   .group { margin: 0 0 22px; }
   .group h2 { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
   .field { display: block; margin-bottom: 10px; }
-  .field span { display: block; font-size: 14px; color: var(--ink-2); margin-bottom: 4px; }
-  .field input, .field textarea { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; }
+  .field > span { display: block; font-size: 14px; color: var(--ink-2); margin-bottom: 4px; }
+  .field input, .field textarea { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; min-height: 50px; }
   .field textarea { min-height: 96px; resize: vertical; }
   .field input:focus, .field textarea:focus { outline: none; border-color: var(--ink); }
   .field .help { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row2 > .field { min-width: 0; }
 
   /* ---------- 底部固定按鈕 ---------- */
-  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(221,231,239,0)); }
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(221,231,239,0)); z-index: 5; }
   .dock .inner { max-width: 480px; margin: 0 auto; }
   .btn { display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 700; cursor: pointer; }
   .btn.send { background: var(--line); color: #fff; box-shadow: 0 6px 16px -8px var(--line-dark); }
   .btn.send:active { background: var(--line-dark); }
+  .btn.ink { background: var(--ink); color: #fff; }
   .btn.plain { background: var(--paper); color: var(--ink); border: 1.5px solid var(--rule); }
+  .btn.small { display: inline-block; width: auto; padding: 8px 14px; font-size: 14px; border-radius: 10px; }
   .btn:disabled { opacity: .55; cursor: default; }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+  /* ---------- 狀態標籤 ---------- */
+  .state { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 6px; background: #E6F8EE; color: var(--line-dark); white-space: nowrap; }
+  .state.full { background: #FDF3DA; color: #8A6100; }
+  .state.ended, .state.closed { background: #EEF1F5; color: var(--ink-2); }
 
   /* ---------- 已發布列表 ---------- */
   .stubs { display: grid; gap: 12px; }
-  .stub-card { background: var(--paper); border-radius: 14px; display: grid; grid-template-columns: 1fr auto; overflow: hidden; }
+  .stub-card { background: var(--paper); border-radius: 14px; display: grid; grid-template-columns: 1fr auto; overflow: hidden; border: 0; padding: 0; text-align: left; width: 100%; cursor: pointer; }
   .stub-card .info { padding: 14px 16px; min-width: 0; }
   .stub-card .t { font-family: var(--serif); font-weight: 900; font-size: 17px; line-height: 1.4; word-break: break-word; }
-  .stub-card .d { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
-  .stub-card .state { display: inline-block; font-size: 12px; margin-top: 6px; padding: 1px 8px; border-radius: 6px; background: #E6F8EE; color: var(--line-dark); }
-  .stub-card .state.off { background: #EEF1F5; color: var(--ink-2); }
+  .stub-card .d { color: var(--ink-2); font-size: 13px; margin: 2px 0 6px; }
   .stub-card .count { border-left: 2px dashed var(--rule); padding: 14px 16px; text-align: center; display: flex; flex-direction: column; justify-content: center; min-width: 84px; }
   .stub-card .count b { font-family: var(--serif); font-size: 30px; line-height: 1; }
   .stub-card .count small { color: var(--ink-2); font-size: 12px; margin-top: 4px; }
-  .stub-card .acts { grid-column: 1 / -1; display: flex; border-top: 1px solid var(--rule); }
-  .stub-card .acts button { flex: 1; background: none; border: 0; padding: 11px; font-size: 14px; font-weight: 500; cursor: pointer; }
-  .stub-card .acts button + button { border-left: 1px solid var(--rule); }
-  .stub-card .acts .go { color: var(--line-dark); font-weight: 700; }
   .empty { text-align: center; color: var(--ink-2); padding: 40px 10px; }
   .empty .btn { margin-top: 14px; }
 
-  /* ---------- 成員畫面 ---------- */
+  /* ---------- 活動詳情 ---------- */
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 6px; }
+  .fact { background: var(--paper); border-radius: 12px; padding: 10px 14px; }
+  .fact small { display: block; color: var(--ink-2); font-size: 12px; }
+  .fact span { font-weight: 700; }
+  .roll-head { display: flex; justify-content: space-between; align-items: center; margin: 26px 0 8px; }
+  .roll-head h2 { font-size: 17px; margin: 0; }
+  .roll { list-style: none; margin: 0; padding: 0; background: var(--paper); border-radius: 14px; overflow: hidden; counter-reset: roll; }
+  .roll li { display: grid; grid-template-columns: 2em 1fr auto; gap: 8px; align-items: baseline; padding: 11px 16px; border-top: 1px solid var(--sky); counter-increment: roll; }
+  .roll li:first-child { border-top: 0; }
+  .roll li::before { content: counter(roll); font-family: var(--serif); font-weight: 900; color: var(--ink-2); }
+  .roll .nm { font-weight: 500; min-width: 0; word-break: break-word; }
+  .roll .nm small { display: block; color: var(--ink-2); font-size: 12px; font-weight: 400; }
+  .roll time { color: var(--ink-2); font-size: 13px; }
+
+  /* ---------- 成員 ---------- */
+  .add-member { background: var(--paper); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
+  .add-member h2 { font-size: 15px; margin: 0 0 10px; }
+  .add-member .btn { margin-top: 4px; }
+  .summary { color: var(--ink-2); font-size: 14px; margin: 0 0 10px; }
+  .search { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 11px 14px; font-size: 16px; margin-bottom: 12px; }
+  .members { list-style: none; margin: 0; padding: 0; background: var(--paper); border-radius: 14px; overflow: hidden; }
+  .members li { padding: 12px 16px; border-top: 1px solid var(--sky); }
+  .members li:first-child { border-top: 0; }
+  .members .line1 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .members .nm { font-weight: 700; }
+  .members .ph { color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .members .line2 { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; color: var(--ink-2); }
+  .members .acts { display: flex; gap: 6px; }
+  .members .acts button { background: none; border: 1px solid var(--rule); border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+  .members .acts button.danger { color: var(--stamp); border-color: #EBC3C6; }
+  .members .acts button.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
+  .bound { color: var(--line-dark); }
+
+  /* ---------- 成員報名畫面 ---------- */
   .solo { padding-top: 40px; }
   .solo .ticket { overflow: visible; }
   .solo .ticket .main { padding-top: 26px; }
@@ -115,6 +160,7 @@
   @keyframes land { from { transform: rotate(-14deg) scale(2.2); opacity: 0; } to { transform: rotate(-14deg) scale(1); opacity: .9; } }
   .solo .ticket .title { padding-right: 100px; }
   .warn { background: #FBECEC; color: #8E1F27; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 0 0 12px; }
+  .posted { margin-top: 10px; font-size: 13px; color: var(--line-dark); }
 
   .loading { text-align: center; color: var(--ink-2); padding: 80px 0; }
   .loading .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); margin: 0 4px; animation: blink 1s infinite; }
@@ -149,26 +195,90 @@ const DEMO = LIFF_ID.startsWith('請填') || PARAMS.has('demo');
 const $app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const view = html => { $app.innerHTML = html; window.scrollTo(0, 0); };
+const $ = id => document.getElementById(id);
 const loading = () => `<div class="loading" role="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
 const isHttps = u => /^https:\/\//.test(u || '');
+const liffUrl = id => `https://liff.line.me/${LIFF_ID}?event=${encodeURIComponent(id)}`;
+
+const STATE_TEXT = { open: '報名中', full: '已額滿', ended: '已截止', closed: '已停止' };
+const stateTag = s => `<span class="state ${s || 'open'}">${STATE_TEXT[s] || STATE_TEXT.open}</span>`;
+
+/** 「2026-11-07 23:59」→「11/7 23:59」 */
+function shortTime(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s || '');
+  return m ? `${+m[2]}/${+m[3]} ${m[4]}:${m[5]}` : '';
+}
 
 let toastTimer;
 function toast(msg) {
-  const t = document.getElementById('toast');
+  const t = $('toast');
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-/* ---------- 預覽模式用的假資料 ---------- */
-const demoStore = {
+/* ================= 預覽模式用的假資料 ================= */
+const demo = {
   me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isPublisher: true },
   events: [
-    { id: 'E2611080001', title: '週六河濱淨灘', date: '11/8（六）08:30', place: '大稻埕碼頭 5 號水門', desc: '手套和夾子現場提供，請自備水壺。', image: '', button: '我要報名', open: true, count: 18 },
-    { id: 'E2611010001', title: '十一月讀書會：《被討厭的勇氣》', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: false, count: 9 },
+    { id: 'E1', title: '週六河濱淨灘', date: '11/8（六）08:30', place: '大稻埕碼頭 5 號水門', desc: '手套和夾子現場提供，請自備水壺。', image: '', button: '我要報名', open: true, capacity: 30, deadline: '2026-11-07 21:00' },
+    { id: 'E2', title: '十一月讀書會', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59' },
+  ],
+  log: {
+    E1: [['11/5 20:14', '王小明', '小明'], ['11/5 20:31', '陳怡君', 'Yi-Chun'], ['11/6 07:02', '簡晨光', '晨光']],
+    E2: [['10/28 09:10', '林志豪', '志豪']],
+  },
+  members: [
+    { name: '王小明', phone: '0912345678', bound: true, lineName: '小明' },
+    { name: '陳怡君', phone: '0922333444', bound: true, lineName: 'Yi-Chun' },
+    { name: '簡晨光', phone: '0911706870', bound: true, lineName: '晨光' },
+    { name: '林志豪', phone: '0933555777', bound: false, lineName: '' },
   ],
 };
-if (DEMO) {
-  window.liff = { isInClient: () => false, closeWindow() {}, isApiAvailable: () => false };
+function demoEvent(e) {
+  const count = (demo.log[e.id] || []).length;
+  let state = 'open';
+  if (!e.open) state = 'closed';
+  else if (e.deadline && new Date(e.deadline.replace(' ', 'T')) < new Date('2026-11-06T08:00')) state = 'ended';
+  else if (e.capacity && count >= e.capacity) state = 'full';
+  return { ...e, count, state };
+}
+const demoMembers = () => demo.members.map((m, i) => ({ ...m, row: i + 2 }));
+if (DEMO) window.liff = { isInClient: () => false, closeWindow() {}, isApiAvailable: () => false, getContext: () => null };
+
+async function demoApi(action, d) {
+  await new Promise(r => setTimeout(r, 300));
+  const find = id => demo.events.find(e => e.id === id);
+  const ev = demoEvent(demo.events[0]);
+  const names = (demo.log.E1 || []).map(x => x[1]);
+  switch (action) {
+    case 'me': return { ok: true, ...demo.me };
+    case 'listEvents': return { ok: true, events: demo.events.map(demoEvent) };
+    case 'eventDetail': {
+      const e = find(d.eventId);
+      return { ok: true, event: demoEvent(e), attendees: (demo.log[e.id] || []).map(x => ({ time: x[0], name: x[1], lineName: x[2] })) };
+    }
+    case 'createEvent': {
+      const e = { ...d.event, id: 'E' + Date.now(), open: true, capacity: +d.event.capacity || 0 };
+      demo.events.unshift(e); return { ok: true, event: demoEvent(e) };
+    }
+    case 'updateEvent': { const e = find(d.eventId); Object.assign(e, d.event, { capacity: +d.event.capacity || 0 }); return { ok: true, event: demoEvent(e) }; }
+    case 'setOpen': { const e = find(d.eventId); e.open = d.open; return { ok: true, event: demoEvent(e) }; }
+    case 'listMembers': return { ok: true, members: demoMembers() };
+    case 'addMember': {
+      if (!d.name || String(d.phone).replace(/\D/g, '').length < 9) throw new Error('請填寫姓名和完整手機號碼');
+      demo.members.push({ name: d.name, phone: d.phone, bound: false, lineName: '' }); return { ok: true, members: demoMembers() };
+    }
+    case 'unbindMember': { const m = demo.members[d.row - 2]; m.bound = false; m.lineName = ''; return { ok: true, members: demoMembers() }; }
+    case 'removeMember': demo.members.splice(d.row - 2, 1); return { ok: true, members: demoMembers() };
+    case 'register': {
+      const s = PARAMS.get('demo');
+      if (s === 'bind') return { ok: true, status: 'need_bind', event: ev };
+      if (s === 'already') return { ok: true, status: 'already', name: '簡晨光', event: ev, names };
+      if (s === 'full') return { ok: true, status: 'full', event: { ...ev, state: 'full' } };
+      return { ok: true, status: 'registered', name: '簡晨光', event: ev, names };
+    }
+    case 'bind': return { ok: true, status: 'registered', name: d.name || '簡晨光', event: ev, names: names.concat(d.name || []) };
+  }
 }
 
 async function api(action, data = {}) {
@@ -184,31 +294,7 @@ async function api(action, data = {}) {
   return j;
 }
 
-async function demoApi(action, data) {
-  await new Promise(r => setTimeout(r, 350));
-  const ev = demoStore.events[0];
-  switch (action) {
-    case 'me': return { ok: true, ...demoStore.me };
-    case 'listEvents': return { ok: true, events: demoStore.events };
-    case 'createEvent': {
-      const e = { ...data.event, id: 'E' + Date.now(), open: true, count: 0 };
-      demoStore.events.unshift(e); return { ok: true, event: e };
-    }
-    case 'setOpen': {
-      const e = demoStore.events.find(x => x.id === data.eventId); e.open = data.open; return { ok: true, event: e };
-    }
-    case 'register': {
-      const s = PARAMS.get('demo');
-      if (s === 'bind') return { ok: true, status: 'need_bind', event: ev };
-      if (s === 'already') return { ok: true, status: 'already', name: '王小明', event: ev };
-      if (s === 'closed') return { ok: true, status: 'closed', event: { ...ev, open: false } };
-      return { ok: true, status: 'registered', name: '王小明', event: ev };
-    }
-    case 'bind': return { ok: true, status: 'registered', name: data.name || '王小明', event: ev };
-  }
-}
-
-/* ---------- 入口 ---------- */
+/* ================= 入口 ================= */
 async function main() {
   try {
     if (!DEMO) {
@@ -216,19 +302,21 @@ async function main() {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
     }
     const eventId = new URLSearchParams(location.search).get('event');
-    const demoMember = DEMO && ['member', 'bind', 'already', 'closed'].includes(PARAMS.get('demo'));
-    if (eventId || demoMember) await memberFlow(eventId || 'demo');
+    const demoMember = DEMO && ['member', 'bind', 'already', 'full'].includes(PARAMS.get('demo'));
+    if (eventId || demoMember) await memberFlow(eventId || 'E1');
     else await publisherFlow();
   } catch (e) {
     view(`<section class="solo">${ticket({ title: '無法開啟' }, `<div class="result-msg"><p>${esc(e.message)}</p><p class="muted">請關閉後從 LINE 重新開啟一次。</p></div>`)}</section>`);
   }
 }
 
-/* ---------- 共用：票券 ---------- */
+/* ================= 共用：票券 ================= */
 function ticket(ev, stubHtml, extra = '') {
   const meta = [];
   if (ev.date) meta.push(`<dt>時間</dt><dd>${esc(ev.date)}</dd>`);
   if (ev.place) meta.push(`<dt>地點</dt><dd>${esc(ev.place)}</dd>`);
+  if (+ev.capacity) meta.push(`<dt>名額</dt><dd>${+ev.capacity} 人</dd>`);
+  if (shortTime(ev.deadline)) meta.push(`<dt>截止</dt><dd>${shortTime(ev.deadline)}</dd>`);
   return `<article class="ticket">
     ${extra}
     ${isHttps(ev.image) ? `<img class="hero" src="${esc(ev.image)}" alt="" onerror="this.remove()">` : ''}
@@ -251,18 +339,38 @@ async function memberFlow(eventId) {
 function showResult(r, eventId) {
   const ev = r.event || {};
   const done = (stamp, cls, line, sub) => view(`<section class="solo">
-      ${ticket(ev, `<div class="result-msg"><p>${line}</p>${sub ? `<p class="muted">${sub}</p>` : ''}</div>`,
+      ${ticket(ev, `<div class="result-msg"><p>${line}</p>${sub ? `<p class="muted">${sub}</p>` : ''}<p class="posted" id="posted" hidden></p></div>`,
         `<div class="stamp land ${cls}" aria-hidden="true">${stamp}</div>`)}
       ${liff.isInClient() ? `<button class="btn plain" style="margin-top:18px" onclick="liff.closeWindow()">回到聊天室</button>` : ''}
     </section>`);
+  const cap = ev.capacity ? `／${ev.capacity}` : '';
   switch (r.status) {
-    case 'registered':  done('已報名', '', `${esc(r.name)}，報名完成。`, '主辦人已經收到你的報名。'); break;
-    case 'already':     done('已報名', '', `${esc(r.name)}，你之前就報名了。`, '不用再按一次。'); break;
+    case 'registered':
+      done('已報名', '', `${esc(r.name)}，報名完成。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
+      postRoll(ev, r.names || [r.name], r.name);
+      break;
+    case 'already':     done('已報名', '', `${esc(r.name)}，你之前就報名了。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`); break;
+    case 'full':        done('額滿', 'ink', '名額已經滿了。', '想候補請直接聯絡主辦人。'); break;
+    case 'ended':       done('截止', 'ink', '報名時間已經過了。', '有問題請直接聯絡主辦人。'); break;
     case 'closed':      done('截止', 'ink', '這個活動已經停止報名。', '有問題請直接聯絡主辦人。'); break;
     case 'need_bind':   bindForm(eventId, ev); break;
     case 'not_found':   bindForm(eventId, ev, '名單裡找不到這組姓名和手機。請確認輸入正確，或聯絡主辦人把你加進名單。'); break;
     case 'bound_other': done('待確認', 'ink', '這筆名單資料已經綁定另一個 LINE 帳號。', '請聯絡主辦人協助處理。'); break;
     default:            done('錯誤', 'ink', '收到無法辨識的回應。', '請稍後再試一次。');
+  }
+}
+
+/** 報名成功後，以報名者名義在原本的聊天室貼出最新的接龍名單 */
+async function postRoll(ev, names, who) {
+  const note = $('posted');
+  if (DEMO) { note.hidden = false; note.textContent = '預覽模式：正式版會在群組貼出最新名單'; return; }
+  const ctx = liff.isInClient() && liff.getContext();
+  if (!ctx || !['group', 'room', 'utou'].includes(ctx.type)) return; // 不是從聊天室開的就不發
+  try {
+    await liff.sendMessages([buildRollFlex(ev, names, who)]);
+    note.hidden = false; note.textContent = '已在聊天室更新報名名單';
+  } catch (e) {
+    note.hidden = false; note.textContent = '名單沒有貼到聊天室（' + e.message + '），報名本身已完成。';
   }
 }
 
@@ -277,11 +385,11 @@ function bindForm(eventId, ev, warn = '') {
         <button id="f-go" class="btn send" style="margin-top:6px">確認並報名</button>
       </div>`)}
   </section>`);
-  const btn = document.getElementById('f-go');
+  const btn = $('f-go');
   btn.onclick = async () => {
     btn.disabled = true; btn.textContent = '確認中';
     try {
-      showResult(await api('bind', { eventId, name: document.getElementById('f-name').value, phone: document.getElementById('f-phone').value }), eventId);
+      showResult(await api('bind', { eventId, name: $('f-name').value, phone: $('f-phone').value }), eventId);
     } catch (e) {
       toast(e.message); btn.disabled = false; btn.textContent = '確認並報名';
     }
@@ -289,8 +397,10 @@ function bindForm(eventId, ev, warn = '') {
 }
 
 /* ================= 發布者平台 ================= */
-let ME = null, EVENTS = [], TAB = 'new';
-const draft = { title: '', date: '', place: '', desc: '', image: '', button: '我要報名' };
+let ME = null, EVENTS = [], MEMBERS = null, TAB = 'new', ROUTE = { view: 'tabs' };
+const blankDraft = () => ({ title: '', date: '', place: '', desc: '', image: '', button: '我要報名', capacity: '', deadline: '' });
+let draft = blankDraft();
+let editDraft = null;
 
 async function publisherFlow() {
   view(loading());
@@ -300,7 +410,7 @@ async function publisherFlow() {
         <p>把下面這串代碼交給管理員，貼到試算表「發布者」工作表的第一欄，再重新開啟這個頁面。</p>
         <code class="uid">${esc(ME.userId)}</code>
         <button class="btn plain" id="copy">複製代碼</button></div>`)}</section>`);
-    document.getElementById('copy').onclick = () => navigator.clipboard.writeText(ME.userId).then(() => toast('已複製代碼'));
+    $('copy').onclick = () => copyText(ME.userId, '已複製代碼');
     return;
   }
   await refreshEvents();
@@ -311,95 +421,257 @@ async function refreshEvents() {
   try { EVENTS = (await api('listEvents')).events; } catch (e) { toast(e.message); }
 }
 
+function copyText(text, done) {
+  navigator.clipboard.writeText(text).then(() => toast(done), () => toast('無法複製，請長按文字自行複製'));
+}
+
+function go(route) { ROUTE = route; render(); }
+
 function render() {
+  if (ROUTE.view === 'detail') return renderDetail(ROUTE.id);
+  if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
+  const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
   view(`
     <header class="top"><h1>報名圖卡</h1><span class="who">${esc(ME.displayName)}</span></header>
-    ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料，設定好 LINE 後就會換成真的。</p>` : ''}
+    ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
       <button role="tab" aria-selected="${TAB === 'sent'}" data-tab="sent">已發布<span class="n">${EVENTS.length}</span></button>
+      <button role="tab" aria-selected="${TAB === 'members'}" data-tab="members">成員${MEMBERS ? `<span class="n">${MEMBERS.length}</span>` : ''}</button>
     </nav>
     <div id="panel"></div>
-    <div class="dock" id="dock" ${TAB === 'new' ? '' : 'hidden'}><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>`);
+    ${dock}`);
   document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; render(); });
-  if (TAB === 'new') renderCompose(); else renderSent();
+  if (TAB === 'new') renderCompose();
+  else if (TAB === 'sent') renderSent();
+  else renderMembers();
 }
 
-function renderCompose() {
-  const f = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input id="e-${k}" value="${esc(draft[k])}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
-  document.getElementById('panel').innerHTML = `
+/* ---------- 活動表單（新增與編輯共用） ---------- */
+function eventForm(d) {
+  const f = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input data-k="${k}" value="${esc(d[k])}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
+  return `
     <div id="pv"></div>
     <p class="caption">群組裡的人會看到這張圖卡</p>
     <div class="group"><h2>活動</h2>
-      ${f('title', '活動名稱', 'maxlength="60" required')}
+      ${f('title', '活動名稱', 'maxlength="60"')}
       <div class="row2">${f('date', '時間', 'placeholder="11/20（五）19:00"')}${f('place', '地點')}</div>
     </div>
+    <div class="group"><h2>名額與截止</h2>
+      <div class="row2">
+        ${f('capacity', '人數上限', 'type="number" inputmode="numeric" min="0" placeholder="不限"')}
+        ${f('deadline', '截止時間', 'type="datetime-local"')}
+      </div>
+      <div class="help">都可以留白。額滿或過了截止時間，報名會自動停止。</div>
+    </div>
     <div class="group"><h2>內容</h2>
-      <label class="field"><span>說明</span><textarea id="e-desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(draft.desc)}</textarea></label>
+      <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea></label>
       ${f('image', '圖片網址', 'type="url" inputmode="url" placeholder="https://"', '選填。要用 https 開頭、公開的圖片連結。')}
       ${f('button', '按鈕文字', 'maxlength="20"')}
     </div>`;
-  Object.keys(draft).forEach(k => document.getElementById('e-' + k).addEventListener('input', e => { draft[k] = e.target.value; preview(); }));
-  preview();
-  document.getElementById('send').onclick = createAndSend;
 }
 
-function preview() {
-  const ev = { ...draft, title: draft.title.trim() };
-  document.getElementById('pv').innerHTML = ticket(ev,
-    `<div class="stub"><span class="notch"></span><span class="fake-btn">${esc(draft.button.trim() || '我要報名')}</span></div>`);
+function bindEventForm(d) {
+  document.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
+    d[el.dataset.k] = el.value; preview(d);
+  }));
+  preview(d);
 }
 
-function renderSent() {
-  const panel = document.getElementById('panel');
-  if (!EVENTS.length) {
-    panel.innerHTML = `<div class="empty"><p>還沒有發布過活動。</p><button class="btn send" id="go-new">建立第一個活動</button></div>`;
-    document.getElementById('go-new').onclick = () => { TAB = 'new'; render(); };
-    return;
-  }
-  panel.innerHTML = `<div class="stubs">${EVENTS.map((e, i) => `
-    <article class="stub-card">
-      <div class="info">
-        <div class="t">${esc(e.title)}</div>
-        ${e.date ? `<div class="d">${esc(e.date)}</div>` : ''}
-        <span class="state ${e.open ? '' : 'off'}">${e.open ? '報名中' : '已截止'}</span>
-      </div>
-      <div class="count"><b>${e.count}</b><small>人報名</small></div>
-      <div class="acts">
-        <button class="go" data-share="${i}">再發送一次</button>
-        <button data-toggle="${i}">${e.open ? '停止報名' : '重新開放'}</button>
-      </div>
-    </article>`).join('')}</div>`;
-  panel.querySelectorAll('[data-share]').forEach(b => b.onclick = () => share(EVENTS[b.dataset.share]));
-  panel.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
-    const e = EVENTS[b.dataset.toggle]; b.disabled = true;
-    try { await api('setOpen', { eventId: e.id, open: !e.open }); e.open = !e.open; toast(e.open ? '已重新開放報名' : '已停止報名'); renderSent(); }
-    catch (err) { toast(err.message); b.disabled = false; }
-  });
+function preview(d) {
+  $('pv').innerHTML = ticket({ ...d, title: d.title.trim() },
+    `<div class="stub"><span class="notch"></span><span class="fake-btn">${esc(d.button.trim() || '我要報名')}</span></div>`);
+}
+
+const toPayload = d => ({ ...d, button: d.button.trim() || '我要報名', deadline: (d.deadline || '').replace('T', ' ') });
+
+function renderCompose() {
+  $('panel').innerHTML = eventForm(draft);
+  bindEventForm(draft);
+  $('send').onclick = createAndSend;
 }
 
 async function createAndSend() {
-  if (!draft.title.trim()) { toast('請先填活動名稱'); document.getElementById('e-title').focus(); return; }
-  const btn = document.getElementById('send');
+  if (!draft.title.trim()) { toast('請先填活動名稱'); document.querySelector('[data-k=title]').focus(); return; }
+  const btn = $('send');
   btn.disabled = true; btn.textContent = '建立中';
   try {
-    const { event } = await api('createEvent', { event: { ...draft, button: draft.button.trim() || '我要報名' } });
+    const { event } = await api('createEvent', { event: toPayload(draft) });
     btn.textContent = '選擇群組';
     await share(event);
-    Object.assign(draft, { title: '', date: '', place: '', desc: '', image: '', button: '我要報名' });
+    draft = blankDraft();
     await refreshEvents();
-    TAB = 'sent'; render();
+    TAB = 'sent'; go({ view: 'detail', id: event.id });
   } catch (e) {
     toast(e.message); btn.disabled = false; btn.textContent = '發送到 LINE 群組';
   }
 }
 
+/* ---------- 已發布 ---------- */
+function renderSent() {
+  const panel = $('panel');
+  if (!EVENTS.length) {
+    panel.innerHTML = `<div class="empty"><p>還沒有發布過活動。</p><button class="btn send" id="go-new">建立第一個活動</button></div>`;
+    $('go-new').onclick = () => { TAB = 'new'; render(); };
+    return;
+  }
+  panel.innerHTML = `<div class="stubs">${EVENTS.map(e => `
+    <button class="stub-card" data-open="${esc(e.id)}">
+      <div class="info">
+        <div class="t">${esc(e.title)}</div>
+        <div class="d">${esc(e.date || '未填時間')}</div>
+        ${stateTag(e.state)}
+      </div>
+      <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人報名'}</small></div>
+    </button>`).join('')}</div>`;
+  panel.querySelectorAll('[data-open]').forEach(b => b.onclick = () => go({ view: 'detail', id: b.dataset.open }));
+}
+
+/* ---------- 活動詳情 ---------- */
+async function renderDetail(id) {
+  view(`<div class="subbar"><button class="back" id="back">‹ 已發布</button></div>${loading()}`);
+  $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
+  let d;
+  try { d = await api('eventDetail', { eventId: id }); }
+  catch (e) { toast(e.message); return; }
+  const ev = d.event, list = d.attendees;
+  const i = EVENTS.findIndex(x => x.id === ev.id); if (i >= 0) EVENTS[i] = ev;
+
+  view(`
+    <div class="subbar"><button class="back" id="back">‹ 已發布</button><button class="btn plain small" id="edit">編輯</button></div>
+    ${ticket(ev, `<div class="stub tally"><b>${ev.count}</b><span>${ev.capacity ? `／${ev.capacity} 人` : '人報名'}</span>${stateTag(ev.state)}</div>`)}
+    <div class="btn-row">
+      <button class="btn send" id="share">發送到群組</button>
+      <button class="btn plain" id="toggle">${ev.open ? '停止報名' : '重新開放'}</button>
+    </div>
+    <div class="roll-head"><h2>報名名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
+    ${list.length ? `<ol class="roll">${list.map(a => `
+        <li><span class="nm">${esc(a.name)}${a.lineName && a.lineName !== a.name ? `<small>LINE：${esc(a.lineName)}</small>` : ''}</span><time>${esc(a.time)}</time></li>`).join('')}</ol>`
+      : `<div class="empty">還沒有人報名。把圖卡發到群組，大家就能一鍵報名。</div>`}`);
+
+  $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
+  $('edit').onclick = () => go({ view: 'edit', id: ev.id });
+  $('share').onclick = () => share(ev);
+  $('toggle').onclick = async () => {
+    $('toggle').disabled = true;
+    try { await api('setOpen', { eventId: ev.id, open: !ev.open }); toast(ev.open ? '已停止報名' : '已重新開放報名'); renderDetail(ev.id); }
+    catch (e) { toast(e.message); $('toggle').disabled = false; }
+  };
+  if (list.length) $('copy').onclick = () => copyText(
+    `${ev.title}\n報名 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${a.name}`).join('\n'),
+    '已複製名單');
+}
+
+/* ---------- 編輯活動 ---------- */
+function renderEdit(id) {
+  const ev = EVENTS.find(x => x.id === id);
+  if (!ev) return go({ view: 'tabs' });
+  editDraft = {
+    title: ev.title, date: ev.date, place: ev.place, desc: ev.desc, image: ev.image, button: ev.button,
+    capacity: ev.capacity ? String(ev.capacity) : '', deadline: (ev.deadline || '').replace(' ', 'T'),
+  };
+  view(`
+    <div class="subbar"><button class="back" id="back">‹ 取消</button><h1>編輯活動</h1><span></span></div>
+    ${eventForm(editDraft)}
+    <div class="dock"><div class="inner"><button class="btn ink" id="save">儲存變更</button></div></div>`);
+  bindEventForm(editDraft);
+  $('back').onclick = () => go({ view: 'detail', id });
+  $('save').onclick = async () => {
+    if (!editDraft.title.trim()) { toast('請先填活動名稱'); return; }
+    const b = $('save'); b.disabled = true; b.textContent = '儲存中';
+    try {
+      await api('updateEvent', { eventId: id, event: toPayload(editDraft) });
+      toast('已儲存變更。群組裡舊的圖卡不會變，需要的話再發送一次。');
+      await refreshEvents();
+      go({ view: 'detail', id });
+    } catch (e) { toast(e.message); b.disabled = false; b.textContent = '儲存變更'; }
+  };
+}
+
+/* ---------- 成員名單 ---------- */
+let memberQuery = '';
+async function renderMembers() {
+  const panel = $('panel');
+  if (!MEMBERS) {
+    panel.innerHTML = loading();
+    try { MEMBERS = (await api('listMembers')).members; } catch (e) { panel.innerHTML = `<p class="warn">${esc(e.message)}</p>`; return; }
+    if (TAB !== 'members' || ROUTE.view !== 'tabs') return;
+    return render();
+  }
+  const boundN = MEMBERS.filter(m => m.bound).length;
+  panel.innerHTML = `
+    <form class="add-member" id="add">
+      <h2>新增成員</h2>
+      <div class="row2">
+        <label class="field"><span>姓名</span><input id="m-name" autocomplete="off"></label>
+        <label class="field"><span>手機</span><input id="m-phone" type="tel" inputmode="numeric" placeholder="0912345678"></label>
+      </div>
+      <button class="btn ink" type="submit">加入名單</button>
+    </form>
+    <p class="summary">共 ${MEMBERS.length} 人，${boundN} 人已綁定 LINE。只有名單上的人能報名。</p>
+    <input class="search" id="q" type="search" placeholder="搜尋姓名或手機" value="${esc(memberQuery)}">
+    <ul class="members" id="mlist"></ul>`;
+
+  $('add').onsubmit = async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    try {
+      MEMBERS = (await api('addMember', { name: $('m-name').value.trim(), phone: $('m-phone').value })).members;
+      toast('已加入名單'); memberQuery = ''; render();
+    } catch (err) { toast(err.message); btn.disabled = false; }
+  };
+  $('q').oninput = e => { memberQuery = e.target.value; drawMembers(); };
+  drawMembers();
+}
+
+function drawMembers() {
+  const q = memberQuery.trim();
+  const list = MEMBERS.filter(m => !q || m.name.includes(q) || m.phone.includes(q));
+  const ul = $('mlist');
+  if (!list.length) { ul.innerHTML = `<li class="empty">${q ? '找不到符合的成員。' : '名單還是空的，先在上面加入成員。'}</li>`; return; }
+  ul.innerHTML = list.map(m => `
+    <li>
+      <div class="line1"><span class="nm">${esc(m.name)}</span><span class="ph">${esc(m.phone)}</span></div>
+      <div class="line2">
+        <span>${m.bound ? `<span class="bound">已綁定</span>${m.lineName ? `　LINE：${esc(m.lineName)}` : ''}` : '尚未綁定 LINE'}</span>
+        <span class="acts">
+          ${m.bound ? `<button data-unbind="${m.row}">解除綁定</button>` : ''}
+          <button class="danger" data-remove="${m.row}">移除</button>
+        </span>
+      </div>
+    </li>`).join('');
+  const byRow = row => MEMBERS.find(m => m.row === +row);
+  ul.querySelectorAll('[data-unbind]').forEach(b => b.onclick = () => armThen(b, '確定解除？', async () => {
+    const m = byRow(b.dataset.unbind);
+    MEMBERS = (await api('unbindMember', { row: m.row, name: m.name })).members;
+    toast(`已解除 ${m.name} 的綁定，他下次報名要重新填姓名和手機`); render();
+  }));
+  ul.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => armThen(b, '確定移除？', async () => {
+    const m = byRow(b.dataset.remove);
+    MEMBERS = (await api('removeMember', { row: m.row, name: m.name })).members;
+    toast(`已把 ${m.name} 移出名單`); render();
+  }));
+}
+
+/** 第一次點按鈕先變成確認狀態，3 秒內再點一次才執行 */
+function armThen(btn, label, fn) {
+  if (!btn.classList.contains('armed')) {
+    const old = btn.textContent;
+    btn.classList.add('armed'); btn.textContent = label;
+    setTimeout(() => { if (btn.isConnected) { btn.classList.remove('armed'); btn.textContent = old; } }, 3000);
+    return;
+  }
+  btn.disabled = true;
+  fn().catch(e => { toast(e.message); MEMBERS = null; render(); });
+}
+
+/* ================= 發送到群組 ================= */
 async function share(ev) {
-  if (DEMO) { toast('預覽模式：設定好 LINE 後，這裡會跳出群組選單'); return false; }
+  if (DEMO) { toast('預覽模式：正式版會在這裡跳出群組選單'); return false; }
   if (!liff.isApiAvailable('shareTargetPicker')) { toast('無法開啟群組選單，請確認 LIFF 已開啟 Share target picker'); return false; }
   try {
     const res = await liff.shareTargetPicker([buildFlex(ev)], { isMultiple: true });
-    toast(res ? '已發送到群組' : '已取消發送，可以在「已發布」再發送');
+    toast(res ? '已發送到群組' : '已取消發送');
     return !!res;
   } catch (e) {
     toast('發送失敗：' + e.message); return false;
@@ -407,32 +679,56 @@ async function share(ev) {
 }
 
 /* ================= 群組裡的圖卡（Flex Message） ================= */
-function buildFlex(ev) {
-  const url = `https://liff.line.me/${LIFF_ID}?event=${encodeURIComponent(ev.id)}`;
-  const info = (k, v) => ({ type: 'box', layout: 'baseline', spacing: 'md', contents: [
-    { type: 'text', text: k, color: '#56627A', size: 'sm', flex: 0 },
-    { type: 'text', text: String(v), wrap: true, color: '#1C2840', size: 'sm', flex: 1 } ] });
+const flexInfo = (k, v) => ({ type: 'box', layout: 'baseline', spacing: 'md', contents: [
+  { type: 'text', text: k, color: '#56627A', size: 'sm', flex: 0 },
+  { type: 'text', text: String(v), wrap: true, color: '#1C2840', size: 'sm', flex: 1 } ] });
 
+const flexButton = (label, ev) => ({ type: 'box', layout: 'horizontal', spacing: 'md', paddingAll: '16px', contents: [
+  { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#F2B632', contents: [] },
+  { type: 'button', style: 'primary', color: '#06C755', height: 'sm', flex: 1,
+    action: { type: 'uri', label: String(label).slice(0, 20), uri: liffUrl(ev.id) } } ] });
+
+function buildFlex(ev) {
   const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: '#1C2840' }];
   const meta = [];
-  if (ev.date) meta.push(info('時間', ev.date));
-  if (ev.place) meta.push(info('地點', ev.place));
+  if (ev.date) meta.push(flexInfo('時間', ev.date));
+  if (ev.place) meta.push(flexInfo('地點', ev.place));
+  if (+ev.capacity) meta.push(flexInfo('名額', ev.capacity + ' 人'));
+  if (shortTime(ev.deadline)) meta.push(flexInfo('截止', shortTime(ev.deadline)));
   if (meta.length) body.push({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm', contents: meta });
   if (ev.desc) body.push({ type: 'text', text: ev.desc, size: 'sm', color: '#56627A', wrap: true, margin: 'lg' });
 
   const bubble = {
     type: 'bubble',
     body: { type: 'box', layout: 'vertical', paddingAll: '20px', contents: body },
-    footer: { type: 'box', layout: 'horizontal', spacing: 'md', paddingAll: '16px',
-      contents: [
-        { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#F2B632', contents: [] },
-        { type: 'button', style: 'primary', color: '#06C755', height: 'sm', flex: 1,
-          action: { type: 'uri', label: (ev.button || '我要報名').slice(0, 20), uri: url } } ] },
+    footer: flexButton(ev.button || '我要報名', ev),
   };
   if (isHttps(ev.image)) {
-    bubble.hero = { type: 'image', url: ev.image, size: 'full', aspectRatio: '20:13', aspectMode: 'cover', action: { type: 'uri', uri: url } };
+    bubble.hero = { type: 'image', url: ev.image, size: 'full', aspectRatio: '20:13', aspectMode: 'cover', action: { type: 'uri', uri: liffUrl(ev.id) } };
   }
   return { type: 'flex', altText: `【報名】${ev.title}`.slice(0, 400), contents: bubble };
+}
+
+/** 接龍卡：列出目前所有報名的人，下面附報名按鈕 */
+function buildRollFlex(ev, names, who) {
+  const n = names.length;
+  let list = names.map((x, i) => `${i + 1}. ${x}`).join('\n');
+  if (list.length > 1800) list = list.slice(0, 1800) + '\n…';
+  const count = `目前 ${n} 人${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
+  return {
+    type: 'flex',
+    altText: `${who} 報名了「${ev.title}」，${count}`.slice(0, 400),
+    contents: {
+      type: 'bubble', size: 'kilo',
+      body: { type: 'box', layout: 'vertical', paddingAll: '18px', contents: [
+        { type: 'text', text: ev.title, weight: 'bold', size: 'md', wrap: true, color: '#1C2840' },
+        { type: 'text', text: count, size: 'xs', color: '#56627A', margin: 'sm' },
+        { type: 'separator', margin: 'md', color: '#C9D5E1' },
+        { type: 'text', text: list || '—', size: 'sm', wrap: true, color: '#1C2840', margin: 'md', lineSpacing: '4px' },
+      ] },
+      footer: flexButton('我也要報名', ev),
+    },
+  };
 }
 
 main();
