@@ -4,7 +4,7 @@
  */
 
 const CONFIG = {
-  CHANNEL_ID: '請填入 LINE Login Channel ID', // LINE Developers → 你的 LINE Login channel → Basic settings
+  CHANNEL_ID: '2012412693', // LINE Developers → 你的 LINE Login channel → Basic settings
 };
 
 const SH = { ROSTER: '名單', EVENTS: '活動', LOG: '報名紀錄', PUBLISHERS: '發布者' };
