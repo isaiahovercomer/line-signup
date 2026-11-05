@@ -349,7 +349,10 @@ function showResult(r, eventId) {
       done('已報名', '', `${esc(r.name)}，報名完成。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
       postRoll(ev, r.names || [r.name], r.name);
       break;
-    case 'already':     done('已報名', '', `${esc(r.name)}，你之前就報名了。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`); break;
+    case 'already':
+      done('已報名', '', `${esc(r.name)}，你之前就報名了。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
+      addRepostButton(ev, r.names, r.name);
+      break;
     case 'full':        done('額滿', 'ink', '名額已經滿了。', '想候補請直接聯絡主辦人。'); break;
     case 'ended':       done('截止', 'ink', '報名時間已經過了。', '有問題請直接聯絡主辦人。'); break;
     case 'closed':      done('截止', 'ink', '這個活動已經停止報名。', '有問題請直接聯絡主辦人。'); break;
@@ -360,18 +363,39 @@ function showResult(r, eventId) {
   }
 }
 
-/** 報名成功後，以報名者名義在原本的聊天室貼出最新的接龍名單 */
+/** 以報名者名義在原本的聊天室貼出最新的接龍名單 */
 async function postRoll(ev, names, who) {
   const note = $('posted');
-  if (DEMO) { note.hidden = false; note.textContent = '預覽模式：正式版會在群組貼出最新名單'; return; }
-  const ctx = liff.isInClient() && liff.getContext();
-  if (!ctx || !['group', 'room', 'utou'].includes(ctx.type)) return; // 不是從聊天室開的就不發
-  try {
-    await liff.sendMessages([buildRollFlex(ev, names, who)]);
-    note.hidden = false; note.textContent = '已在聊天室更新報名名單';
-  } catch (e) {
-    note.hidden = false; note.textContent = '名單沒有貼到聊天室（' + e.message + '），報名本身已完成。';
+  const say = t => { note.hidden = false; note.textContent = t; };
+  if (DEMO) return say('預覽模式：正式版會在群組貼出最新名單');
+  const ctx = liff.isInClient() ? liff.getContext() : null;
+  const type = ctx && ctx.type;
+  if (!['group', 'room', 'utou'].includes(type)) {
+    return say(`名單沒有貼出：要從群組裡的圖卡打開才能貼（目前是 ${type || '外部瀏覽器'}）。報名本身已完成。`);
   }
+  try {
+    // 還沒同意「傳送訊息到聊天室」就先請他同意
+    if (liff.permission) {
+      const p = await liff.permission.query('chat_message.write').catch(() => null);
+      if (p && p.state === 'prompt') await liff.permission.requestAll().catch(() => {});
+    }
+    await liff.sendMessages([buildRollFlex(ev, names, who)]);
+    say('已在聊天室更新報名名單');
+    return true;
+  } catch (e) {
+    say(`名單沒有貼到聊天室（${e.code ? e.code + '：' : ''}${e.message}）。報名本身已完成。`);
+    return false;
+  }
+}
+
+/** 已報名的人可以手動在群組貼出目前名單 */
+function addRepostButton(ev, names, who) {
+  const box = document.querySelector('.solo');
+  if (!box || !names || !names.length) return;
+  const b = document.createElement('button');
+  b.className = 'btn send'; b.style.marginTop = '12px'; b.textContent = '在群組貼出目前名單';
+  b.onclick = async () => { b.disabled = true; const ok = await postRoll(ev, names, who); b.disabled = !!ok; };
+  box.insertBefore(b, box.querySelector('.ticket').nextSibling); // 放在「回到聊天室」上面
 }
 
 function bindForm(eventId, ev, warn = '') {
