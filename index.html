@@ -1558,6 +1558,11 @@ function buildRollFlex(ev, names, who, verb = '登記了') {
     { type: 'text', text: `${i + 1}.`, size: 'md', weight: 'bold', color: t.btn, flex: 1, align: 'end' },
     { type: 'text', text: String(x).slice(0, 60), size: 'md', color: t.ink, wrap: true, flex: 8 } ] }));
   if (n > MAX) rows.push({ type: 'text', text: `…還有 ${n - MAX} 人`, size: 'sm', color: t.muted, margin: 'md' });
+  // 時間、地點也放在接龍卡上，不用再滑上去找原本的圖卡
+  const rollMeta = [];
+  if (ev.date) rollMeta.push(flexInfo('時間', ev.date, t));
+  if (ev.place) rollMeta.push(flexInfo('地點', ev.place, t));
+  if (shortTime(ev.deadline)) rollMeta.push(flexInfo('截止', shortTime(ev.deadline), t));
   const count = `目前 ${n} 人${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
   return {
     type: 'flex',
@@ -1567,7 +1572,8 @@ function buildRollFlex(ev, names, who, verb = '登記了') {
       styles: { body: { backgroundColor: t.paper }, footer: { backgroundColor: t.paper } },
       body: { type: 'box', layout: 'vertical', paddingAll: '20px', contents: [
         { type: 'text', text: ev.title, weight: 'bold', size: 'lg', wrap: true, color: t.ink },
-        { type: 'text', text: count, size: 'sm', color: t.muted, margin: 'sm' },
+        ...(rollMeta.length ? [{ type: 'box', layout: 'vertical', margin: 'md', spacing: 'sm', contents: rollMeta }] : []),
+        { type: 'text', text: count, size: 'sm', color: t.muted, margin: 'md' },
         { type: 'separator', margin: 'lg', color: t.line },
         { type: 'box', layout: 'vertical', margin: 'lg', spacing: 'md', contents: rows.length ? rows : [{ type: 'text', text: '—', color: t.muted }] },
       ] },
