@@ -46,20 +46,21 @@ function doPost(e) {
       out = { ok: true, event: ev ? withStats(ev) : null };
     } else {
       const user = verifyIdToken(req.idToken);
-      const pub = () => requirePublisher(user);
+      const admin = () => requirePublisher(user);              // 只有「發布者」工作表裡的管理員
+      const own = () => requireOwner(user, req.eventId);       // 活動建立者或管理員
       switch (req.action) {
         case 'register':     out = register(user, req.eventId); break;
         case 'bind':         out = bind(user, req.eventId, req.name, req.phone); break;
-        case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isPublisher: isPublisher(user.userId) }; break;
-        case 'createEvent':  pub(); out = { ok: true, event: createEvent(user, req.event || {}) }; break;
-        case 'updateEvent':  pub(); out = { ok: true, event: updateEvent(req.eventId, req.event || {}) }; break;
-        case 'listEvents':   pub(); out = { ok: true, events: listEvents() }; break;
-        case 'eventDetail':  pub(); out = { ok: true, ...eventDetail(req.eventId) }; break;
-        case 'setOpen':      pub(); out = { ok: true, event: setOpen(req.eventId, !!req.open) }; break;
-        case 'listMembers':  pub(); out = { ok: true, members: listMembers() }; break;
-        case 'addMember':    pub(); out = { ok: true, members: addMember(req.name, req.phone) }; break;
-        case 'unbindMember': pub(); out = { ok: true, members: unbindMember(req.row, req.name) }; break;
-        case 'removeMember': pub(); out = { ok: true, members: removeMember(req.row, req.name) }; break;
+        case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
+        case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
+        case 'listEvents':   out = { ok: true, events: listEvents(user) }; break;
+        case 'updateEvent':  own(); out = { ok: true, event: updateEvent(req.eventId, req.event || {}) }; break;
+        case 'eventDetail':  own(); out = { ok: true, ...eventDetail(req.eventId) }; break;
+        case 'setOpen':      own(); out = { ok: true, event: setOpen(req.eventId, !!req.open) }; break;
+        case 'listMembers':  admin(); out = { ok: true, members: listMembers() }; break;
+        case 'addMember':    admin(); out = { ok: true, members: addMember(req.name, req.phone) }; break;
+        case 'unbindMember': admin(); out = { ok: true, members: unbindMember(req.row, req.name) }; break;
+        case 'removeMember': admin(); out = { ok: true, members: removeMember(req.row, req.name) }; break;
         default: throw new Error('未知的動作');
       }
     }
@@ -155,7 +156,14 @@ function cleanEventInput(ev) {
 
 /* ---------- 發布者 ---------- */
 function isPublisher(uid) { return rows(SH.PUBLISHERS).some(r => String(r[0]).trim() === uid); }
-function requirePublisher(user) { if (!isPublisher(user.userId)) throw new Error('你沒有發布權限'); }
+function requirePublisher(user) { if (!isPublisher(user.userId)) throw new Error('只有管理員可以使用這個功能'); }
+
+/** 「建立者」欄位存成「LINE名稱 (userId)」，從括號裡取出 userId */
+function creatorOf(row) { const m = /\((U[0-9a-f]+)\)\s*$/.exec(String(row[EV.CREATOR] || '')); return m ? m[1] : ''; }
+function requireOwner(user, eventId) {
+  if (isPublisher(user.userId)) return;
+  if (creatorOf(findEventRow(eventId).row) !== user.userId) throw new Error('只有活動建立者可以管理這個活動');
+}
 
 /* ---------- 活動 ---------- */
 function getEvent(id) {
@@ -189,12 +197,15 @@ function updateEvent(id, input) {
   });
 }
 
-function listEvents() {
+/** 管理員看到全部活動，其他人只看到自己建立的 */
+function listEvents(user) {
   const log = rows(SH.LOG);
   const counts = {};
   log.forEach(r => { counts[r[1]] = (counts[r[1]] || 0) + 1; });
-  return rows(SH.EVENTS).reverse().slice(0, 50).map(r => {
+  const all = isPublisher(user.userId);
+  return rows(SH.EVENTS).filter(r => all || creatorOf(r) === user.userId).reverse().slice(0, 50).map(r => {
     const ev = rowToEvent(r);
+    ev.creator = String(r[EV.CREATOR] || '').replace(/\s*\(U[0-9a-f]+\)\s*$/, '');
     const count = counts[ev.id] || 0;
     return Object.assign(ev, { count, state: stateOf(ev, count) });
   });

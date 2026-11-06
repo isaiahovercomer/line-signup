@@ -218,7 +218,7 @@ function toast(msg) {
 
 /* ================= 預覽模式用的假資料 ================= */
 const demo = {
-  me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isPublisher: true },
+  me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
   events: [
     { id: 'E1', title: '週六河濱淨灘', date: '11/8（六）08:30', place: '大稻埕碼頭 5 號水門', desc: '手套和夾子現場提供，請自備水壺。', image: '', button: '我要報名', open: true, capacity: 30, deadline: '2026-11-07 21:00' },
     { id: 'E2', title: '十一月讀書會', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59' },
@@ -428,15 +428,7 @@ let editDraft = null;
 
 async function publisherFlow() {
   view(loading());
-  ME = await api('me');
-  if (!ME.isPublisher) {
-    view(`<section class="solo">${ticket({ title: '還沒有發布權限' }, `<div class="result-msg">
-        <p>把下面這串代碼交給管理員，貼到試算表「發布者」工作表的第一欄，再重新開啟這個頁面。</p>
-        <code class="uid">${esc(ME.userId)}</code>
-        <button class="btn plain" id="copy">複製代碼</button></div>`)}</section>`);
-    $('copy').onclick = () => copyText(ME.userId, '已複製代碼');
-    return;
-  }
+  ME = await api('me'); // 任何人都能發布；ME.isAdmin 為 true 才看得到所有活動與成員名單
   await refreshEvents();
   render();
 }
@@ -461,7 +453,7 @@ function render() {
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
       <button role="tab" aria-selected="${TAB === 'sent'}" data-tab="sent">已發布<span class="n">${EVENTS.length}</span></button>
-      <button role="tab" aria-selected="${TAB === 'members'}" data-tab="members">成員${MEMBERS ? `<span class="n">${MEMBERS.length}</span>` : ''}</button>
+      ${ME.isAdmin ? `<button role="tab" aria-selected="${TAB === 'members'}" data-tab="members">成員${MEMBERS ? `<span class="n">${MEMBERS.length}</span>` : ''}</button>` : ''}
     </nav>
     <div id="panel"></div>
     ${dock}`);
@@ -543,7 +535,7 @@ function renderSent() {
     <button class="stub-card" data-open="${esc(e.id)}">
       <div class="info">
         <div class="t">${esc(e.title)}</div>
-        <div class="d">${esc(e.date || '未填時間')}</div>
+        <div class="d">${esc(e.date || '未填時間')}${ME.isAdmin && e.creator ? `　由 ${esc(e.creator)} 建立` : ''}</div>
         ${stateTag(e.state)}
       </div>
       <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人報名'}</small></div>
