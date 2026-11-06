@@ -438,13 +438,27 @@ async function demoApi(action, d) {
   }
 }
 
+/* ---------- 平台通行證：登入一次，60 天內不用再登入 ---------- */
+const SESSION_KEY = 'signup.session';
+const getSession = () => { try { const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); return s && s.expires > Date.now() + 60000 ? s : null; } catch (e) { return null; } };
+const setSession = s => { try { s ? localStorage.setItem(SESSION_KEY, JSON.stringify({ token: s.token, expires: s.expires })) : localStorage.removeItem(SESSION_KEY); } catch (e) {} };
+const DRAFT_KEY = 'signup.draft';
+
 async function api(action, data = {}) {
   if (DEMO) return demoApi(action, data);
   const body = { action, ...data };
-  if (action !== 'event') body.idToken = liff.getIDToken();
+  if (action !== 'event') {
+    const s = action === 'session' ? null : getSession();
+    if (s) body.session = s.token; else body.idToken = liff.getIDToken();
+  }
   const r = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
   const j = await r.json();
   if (!j.ok) {
+    if (j.error === 'SESSION_EXPIRED') {
+      setSession(null);
+      if (liff.isLoggedIn()) return api(action, data); // 改用 LINE 登入憑證再試一次
+      liff.login({ redirectUri: location.href }); throw new Error('登入已過期，正在重新登入');
+    }
     if (j.error === 'TOKEN_EXPIRED') { liff.logout(); liff.login({ redirectUri: location.href }); throw new Error('登入已過期，正在重新登入'); }
     throw new Error(j.error);
   }
@@ -457,7 +471,8 @@ async function main() {
     if (PARAMS.has('install')) return installFlow(); // 安裝說明頁不需要登入
     if (!DEMO) {
       await liff.init({ liffId: LIFF_ID });
-      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+      if (!liff.isLoggedIn() && !getSession()) { liff.login({ redirectUri: location.href }); return; }
+      if (liff.isLoggedIn() && !getSession()) { try { setSession(await api('session')); } catch (e) {} }
     }
     const eventId = new URLSearchParams(location.search).get('event');
     const demoMember = DEMO && ['member', 'bind', 'answer', 'already', 'full'].includes(PARAMS.get('demo'));
@@ -604,6 +619,7 @@ async function myDataFlow() {
     b.disabled = true; b.textContent = '刪除中';
     try {
       const r = await api('deleteMyData');
+      setSession(null);
       MEMBERS = null;
       view(`<section class="solo">${ticket({ title: '已刪除你的資料' }, `<div class="result-msg"><p>已移除你的名單資料${r.logs ? `和 ${r.logs} 筆登記紀錄` : ''}。</p><p class="muted">謝謝你。以後想登記活動，再按圖卡重新填寫就好。</p></div>`, `<div class="stamp land ink" aria-hidden="true">已刪除</div>`)}
         ${liff.isInClient() ? `<button class="btn plain" style="margin-top:18px" onclick="liff.closeWindow()">關閉</button>` : ''}</section>`);
@@ -787,6 +803,8 @@ async function publisherFlow() {
   view(loading());
   ME = await api('me'); // 任何人都能發布；ME.isAdmin 為 true 才看得到所有活動與成員名單
   await refreshEvents();
+  // 為了發送而去登入 LINE、回來後把剛才填的內容放回去
+  try { const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (saved) { draft = { ...blankDraft(), ...saved }; localStorage.removeItem(DRAFT_KEY); setTimeout(() => toast('已登入，內容都還在，按「發送到 LINE 群組」繼續'), 300); } } catch (e) {}
   render();
   if (!PARAMS.has('notour')) maybeStartTour();
 }
@@ -1056,6 +1074,13 @@ function renderCompose() {
 async function createAndSend() {
   if (!draft.title.trim()) { toast('請先填活動名稱'); document.querySelector('[data-k=title]').focus(); return; }
   if (questionProblem(draft)) { toast(questionProblem(draft)); return; }
+  // 在 LINE 外面發送到群組，LINE 規定要先登入 LINE；先把填好的內容存起來
+  if (!DEMO && !liff.isLoggedIn()) {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch (e) {}
+    toast('發送到群組前需要登入 LINE 一次');
+    setTimeout(() => liff.login({ redirectUri: location.href }), 600);
+    return;
+  }
   const btn = $('send');
   btn.disabled = true; btn.textContent = '建立中';
   try {
@@ -1476,6 +1501,7 @@ function endTour() {
 /* ================= 發送到群組 ================= */
 async function share(ev) {
   if (DEMO) { toast('預覽模式：正式版會在這裡跳出群組選單'); return false; }
+  if (!liff.isLoggedIn()) { toast('發送到群組前需要登入 LINE 一次'); setTimeout(() => liff.login({ redirectUri: location.href }), 600); return false; }
   if (!liff.isApiAvailable('shareTargetPicker')) { toast('無法開啟群組選單，請確認 LIFF 已開啟 Share target picker'); return false; }
   try {
     const res = await liff.shareTargetPicker([buildFlex(ev)], { isMultiple: true });

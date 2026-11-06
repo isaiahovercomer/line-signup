@@ -46,7 +46,8 @@ function doPost(e) {
       const ev = getEvent(req.eventId);
       out = { ok: true, event: ev ? withStats(ev) : null };
     } else {
-      const user = verifyIdToken(req.idToken);
+      // 有平台自己的通行證就用通行證（60 天有效），否則向 LINE 驗證 ID token
+      const user = req.session && req.action !== 'session' ? userFromSession(req.session) : verifyIdToken(req.idToken);
       const admin = () => requirePublisher(user);              // 只有「發布者」工作表裡的管理員
       const own = () => requireOwner(user, req.eventId);       // 活動建立者或管理員
       switch (req.action) {
@@ -56,6 +57,8 @@ function doPost(e) {
         case 'updateAnswers': out = updateAnswers(user, req.eventId, req.answers); break;
         case 'myData':       out = { ok: true, ...myData(user) }; break;
         case 'deleteMyData': out = { ok: true, ...deleteMyData(user) }; break;
+        case 'session':      out = { ok: true, ...createSession(user) }; break;
+        case 'logout':       deleteSession(req.session); out = { ok: true }; break;
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
@@ -79,6 +82,52 @@ function doPost(e) {
 
 function json(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ---------- 平台通行證：登入一次，60 天內不用再登入 ----------
+   通行證存在隱藏的「登入」工作表，只有試算表擁有者看得到。 */
+const SESSION_SHEET = '登入';
+const SESSION_DAYS = 60;
+
+function sessionSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SESSION_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SESSION_SHEET);
+    sh.appendRow(['通行證', 'LINE userId', 'LINE名稱', '到期', '建立']);
+    sh.setFrozenRows(1);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function createSession(user) {
+  const token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  const now = new Date(), exp = new Date(now.getTime() + SESSION_DAYS * 864e5);
+  withLock(() => {
+    const sh = sessionSheet();
+    const data = sh.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) if (data[i][3] instanceof Date && data[i][3] < now) sh.deleteRow(i + 1); // 順手清掉過期的
+    sh.appendRow([token, user.userId, user.displayName, exp, now]);
+  });
+  return { token, expires: exp.getTime() };
+}
+
+function userFromSession(token) {
+  const data = sessionSheet().getDataRange().getValues();
+  const now = new Date();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === token && data[i][3] instanceof Date && data[i][3] > now) return { userId: String(data[i][1]), displayName: String(data[i][2]) };
+  }
+  throw new Error('SESSION_EXPIRED');
+}
+
+function deleteSession(token) {
+  if (!token) return;
+  withLock(() => {
+    const sh = sessionSheet(), data = sh.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) if (data[i][0] === token) sh.deleteRow(i + 1);
+  });
 }
 
 /** 向 LINE 驗證 ID token，防止有人偽造身分 */
@@ -425,6 +474,7 @@ function deleteMyData(user) {
     };
     roster = del(SH.ROSTER, r => String(r[2]).trim() === user.userId);
     logs = del(SH.LOG, r => String(r[5]) === user.userId);
+    sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId); // 通行證也一併刪除
     return { roster, logs };
   });
 }
