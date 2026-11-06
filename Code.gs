@@ -54,6 +54,8 @@ function doPost(e) {
         case 'bind':         out = bind(user, req.eventId, req.name, req.phone, req.answers); break;
         case 'cancel':       out = cancel(user, req.eventId); break;
         case 'updateAnswers': out = updateAnswers(user, req.eventId, req.answers); break;
+        case 'myData':       out = { ok: true, ...myData(user) }; break;
+        case 'deleteMyData': out = { ok: true, ...deleteMyData(user) }; break;
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
@@ -391,6 +393,38 @@ function register(user, eventId, answers) {
     sheet(SH.LOG).appendRow(entry);
     log.push(entry);
     return { ok: true, status: 'registered', name, event: withStats(ev, log), names: lines() };
+  });
+}
+
+/* ---------- 當事人查看與刪除自己的資料（個資法） ---------- */
+function myData(user) {
+  const r = rows(SH.ROSTER).find(r => String(r[2]).trim() === user.userId);
+  const events = {};
+  rows(SH.EVENTS).forEach(e => { events[String(e[EV.ID])] = String(e[EV.TITLE]); });
+  const regs = rows(SH.LOG).filter(l => String(l[5]) === user.userId).map(l => ({
+    title: events[String(l[1])] || String(l[2]),
+    time: l[0] instanceof Date ? fmt(l[0], 'yyyy/M/d HH:mm') : String(l[0]),
+  }));
+  return {
+    found: !!r || regs.length > 0,
+    name: r ? String(r[0]) : '', phone: r ? String(r[1]) : '', lineName: r ? String(r[3] || '') : user.displayName,
+    registrations: regs,
+  };
+}
+
+/** 刪除名單資料與所有登記紀錄；回傳刪了幾筆 */
+function deleteMyData(user) {
+  return withLock(() => {
+    let roster = 0, logs = 0;
+    const del = (name, test) => {
+      const sh = sheet(name), data = sh.getDataRange().getValues();
+      let n = 0;
+      for (let i = data.length - 1; i >= 1; i--) if (test(data[i])) { sh.deleteRow(i + 1); n++; }
+      return n;
+    };
+    roster = del(SH.ROSTER, r => String(r[2]).trim() === user.userId);
+    logs = del(SH.LOG, r => String(r[5]) === user.userId);
+    return { roster, logs };
   });
 }
 
