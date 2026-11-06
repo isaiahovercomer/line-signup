@@ -131,7 +131,7 @@ function fmtRange(start, end) {
 function cleanQuestions(list) {
   return (Array.isArray(list) ? list : []).map(x => {
     const q = String(typeof x === 'string' ? x : (x && x.q) || '').trim().slice(0, 40);
-    const options = [...new Set((x && Array.isArray(x.options) ? x.options : []).map(o => String(o || '').trim().slice(0, 30)).filter(Boolean))].slice(0, 20);
+    const options = [...new Set((x && Array.isArray(x.options) ? x.options : []).map(o => String(o || '').trim().slice(0, 30)).filter(Boolean))].slice(0, 60);
     return { q, options };
   }).filter(x => x.q).slice(0, 5);
 }

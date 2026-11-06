@@ -101,14 +101,16 @@
     background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
   .stat-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .stat-head .btn.small { margin: 0; flex: none; }
+  .empty-note { border-top: 1px solid var(--sky); padding-top: 10px; margin-top: 4px; }
   .group-block { border-top: 1px solid var(--sky); padding: 12px 0 6px; }
   .group-block:first-of-type { margin-top: 8px; }
   .group-block .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .group-block .lbl { font-weight: 700; font-size: 16px; }
   .group-block .cnt { color: var(--ink-2); font-size: 13px; }
-  .group-block.none .lbl, .group-block.none .bar i { color: var(--ink-2); background: var(--rule); }
+  .group-block.none .lbl { color: var(--ink-2); }
+  .group-block.none .bar i { background: var(--rule); }
   .names { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr)); gap: 6px; }
-  .names li { background: var(--sky); border-radius: 8px; padding: 5px 10px; font-size: 14px; word-break: break-word; }
+  .stat .names li { background: var(--sky); border: 0; border-radius: 8px; padding: 5px 10px; font-size: 14px; word-break: break-word; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1.5px dashed var(--ink-2); background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--ink); cursor: pointer; }
   .chip.new { border-style: solid; border-color: var(--ink); font-weight: 700; }
@@ -279,11 +281,11 @@ function toast(msg) {
 const demo = {
   me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
   events: [
-    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要報名', open: true, capacity: 60, deadline: '2026-12-18 21:00', questions: [{ q: '我可以預備？', options: [] }, { q: '同行人數', options: [] }, { q: '所屬大區？', options: ['北區', '中區', '南區'] }] },
+    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要報名', open: true, capacity: 60, deadline: '2026-12-18 21:00', questions: [{ q: '我可以預備？', options: [] }, { q: '同行人數', options: [] }, { q: '所屬大區？', options: Array.from({ length: 41 }, (_, i) => `${i + 1}大區`) }] },
     { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [] },
   ],
   log: {
-    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2', '北區']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1', '北區']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3', '中區']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
+    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2', '3大區']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1', '3大區']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3', '12大區']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
     E2: [['10/28 09:10', '林志豪', '志豪', []]],
   },
   members: [
@@ -605,10 +607,11 @@ function render() {
 const PRESET_QUESTIONS = [
   { q: '我可以預備？', type: 'text' },
   { q: '同行人數', type: 'text' },
-  { q: '所屬大區？', type: 'select', optionsText: '' },
+  { q: '所屬大區？', type: 'select', optionsText: Array.from({ length: 41 }, (_, i) => `${i + 1}大區`).join('、') },
+  { q: '所屬會所？', type: 'select', optionsText: Array.from({ length: 23 }, (_, i) => `${i + 1}會所`).join('、') },
   { q: '飲食需求', type: 'text' },
 ];
-const splitOptions = t => [...new Set(String(t || '').split(/[,，、;；\n]+/).map(s => s.trim()).filter(Boolean))].slice(0, 20);
+const splitOptions = t => [...new Set(String(t || '').split(/[,，、;；\n]+/).map(s => s.trim()).filter(Boolean))].slice(0, 60);
 /** 編輯用的問題格式：{ q, type: 'text' | 'select', optionsText } */
 const toDraftQuestion = q => ({ q: qText(q), type: qOpts(q).length ? 'select' : 'text', optionsText: qOpts(q).join('、') });
 const MAX_QUESTIONS = 5;
@@ -664,7 +667,12 @@ function bindEventForm(d) {
   preview(d);
 }
 
-const optionsPreview = t => { const o = splitOptions(t); return o.length ? `報名的人會看到 ${o.length} 個選項：${o.map(esc).join('／')}` : '至少要填一個選項'; };
+const optionsPreview = t => {
+  const o = splitOptions(t);
+  if (!o.length) return '至少要填一個選項';
+  const shown = o.length > 8 ? [...o.slice(0, 3), '…', o[o.length - 1]] : o;
+  return `報名的人會看到 ${o.length} 個選項：${shown.map(esc).join('、')}`;
+};
 
 /** 問題清單：已加的問題可改字、切換回答方式或刪除，下面是常用問題與「新增問題」 */
 function drawQuestions(d) {
@@ -907,10 +915,16 @@ function statsHtml(ev, list) {
       // 下拉選單：照選項順序，沒人選的也列出來
       sorted = opts.map(o => groups.get(keyOf(o)) || { label: o, names: [] });
       groups.forEach((g, k) => { if (!opts.some(o => keyOf(o) === k)) sorted.push(g); });
+      // 選項很多（例如 41 個大區）時，只列有人選的，其餘合成一行
+      if (opts.length > 8) {
+        const empty = sorted.filter(g => !g.names.length).length;
+        sorted = sorted.filter(g => g.names.length);
+        if (empty) sorted.emptyNote = `其餘 ${empty} 個選項 0 人`;
+      }
     } else {
       sorted = [...groups.values()].sort((a, b) => b.names.length - a.names.length || a.label.localeCompare(b.label, 'zh-Hant'));
     }
-    if (blank.length) sorted.push({ label: '未回答', names: blank.map(x => x.name), none: true });
+    if (blank.length) { const note = sorted.emptyNote; sorted.push({ label: '未回答', names: blank.map(x => x.name), none: true }); sorted.emptyNote = note; }
     const top = Math.max(1, ...sorted.map(g => g.names.length));
 
     STAT_COPY[i] = `${ev.title}｜${q}\n` + sorted.filter(g => g.names.length).map(g => `【${g.label}】${g.names.length} 人\n${g.names.join('、')}`).join('\n');
@@ -920,7 +934,8 @@ function statsHtml(ev, list) {
         <div class="bar"><i style="width:${g.names.length / top * 100}%"></i></div>
         ${g.names.length ? `<ol class="names">${g.names.map(n => `<li>${esc(n)}</li>`).join('')}</ol>` : ''}
       </section>`).join('');
-    return `<div class="stat">${head(`<button class="btn plain small" data-statcopy="${i}">複製</button>`)}${blocks}</div>`;
+    const note = sorted.emptyNote ? `<p class="meta empty-note">${sorted.emptyNote}</p>` : '';
+    return `<div class="stat">${head(`<button class="btn plain small" data-statcopy="${i}">複製</button>`)}${blocks}${note}</div>`;
   }).join('');
   return `<div class="roll-head"><h2>統計</h2></div><div class="stats">${trend}${cards}</div>`;
 }
