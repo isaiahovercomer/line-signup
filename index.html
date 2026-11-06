@@ -154,6 +154,10 @@
 
   /* ---------- 已發布列表 ---------- */
   .stubs { display: grid; gap: 12px; }
+  .tone-pick { margin-top: 16px; padding-top: 14px; border-top: 1.5px dashed var(--marigold); }
+  .tone-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .tone-head h3 { margin: 0; font-size: 15px; }
+  .tone-head .btn.small { margin: 0; }
   .tones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .tones button { border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 9px 2px 7px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 13px; color: var(--ink); cursor: pointer; }
   .tones i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--sw) 0 58%, var(--sw2) 58%); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); }
@@ -713,6 +717,12 @@ function eventForm(d) {
     <section class="pv-panel" aria-label="圖卡預覽">
       <div class="pv-label"><span class="tag">圖卡預覽</span><small>群組裡的人會看到這張圖卡</small></div>
       <div id="pv"></div>
+      <div class="tone-pick">
+        <div class="tone-head"><h3>圖卡色調</h3><button type="button" class="btn plain small" id="tone-random">隨機換一個</button></div>
+        <div class="tones" role="radiogroup" aria-label="圖卡色調">
+          ${Object.entries(THEMES).map(([id, t]) => `<button type="button" role="radio" aria-checked="${d.theme === id}" data-tone="${id}" style="--sw:${t.btn};--sw2:${t.notch}"><i aria-hidden="true"></i><span>${t.name}</span></button>`).join('')}
+        </div>
+      </div>
     </section>
     <h2 class="form-title">填寫活動資訊</h2>
     <div class="group"><h2>活動</h2>
@@ -722,12 +732,6 @@ function eventForm(d) {
         ${f('end', '結束時間', 'type="datetime-local"', '選填')}
       </div>
       ${f('place', '地點')}
-    </div>
-    <div class="group"><h2>圖卡色調</h2>
-      <div class="tones" role="radiogroup" aria-label="圖卡色調">
-        ${Object.entries(THEMES).map(([id, t]) => `<button type="button" role="radio" aria-checked="${d.theme === id}" data-tone="${id}" style="--sw:${t.btn};--sw2:${t.notch}"><i aria-hidden="true"></i><span>${t.name}</span></button>`).join('')}
-      </div>
-      <button type="button" class="btn plain small" id="tone-random" style="margin-top:10px">隨機換一個</button>
     </div>
     <div class="group"><h2>名額與截止</h2>
       <div class="row2">
@@ -1166,10 +1170,10 @@ const groupOf = sel => { const el = q1(sel); return el && (el.closest('.group') 
 const TOUR_STEPS = [
   { since: 1, tab: 'new', target: () => q1('.pv-panel'), title: '圖卡預覽',
     text: '群組裡的人看到的就是這張圖卡。下面每填一個欄位，預覽會立刻跟著更新。' },
+  { since: 2, tab: 'new', target: () => q1('.tone-pick'), title: '圖卡色調',
+    text: '在預覽圖下面，依活動性質挑一種色調：愛筵聚餐、禱告、福音外展、青年、兒童……也可以按「隨機換一個」。群組裡的圖卡和接龍名單都會換成這個顏色。' },
   { since: 1, tab: 'new', target: () => groupOf('[data-k=title]'), title: '活動名稱與時間',
     text: '填活動名稱；開始和結束時間用選的，只有開始時間也可以。地點照實寫。' },
-  { since: 2, tab: 'new', target: () => q1('.tones') && q1('.tones').closest('.group'), title: '圖卡色調',
-    text: '依活動性質挑一種色調：愛筵聚餐、禱告、福音外展、青年、兒童……也可以按「隨機換一個」。群組裡的圖卡和接龍名單都會換成這個顏色。' },
   { since: 1, tab: 'new', target: () => groupOf('[data-k=capacity]'), title: '名額與登記截止',
     text: '都可以留白。額滿或過了截止時間，登記會自動停止。' },
   { since: 1, tab: 'new', target: () => groupOf('.img-pick'), title: '活動圖片',
