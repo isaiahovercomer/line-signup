@@ -81,6 +81,11 @@
   .ticket .tally span { color: var(--ink-2); font-size: 14px; }
   .ticket .tally .state { margin-left: auto; }
 
+  .pv-panel { --sky: var(--sky-2); background: var(--sky-2); border: 1.5px dashed var(--marigold); border-radius: 20px; padding: 12px 14px 18px; }
+  .pv-label { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 12px; flex-wrap: wrap; }
+  .pv-label .tag { background: var(--marigold); color: var(--paper); font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; letter-spacing: .06em; }
+  .pv-label small { color: var(--ink-2); font-size: 13px; }
+  .form-title { font-family: var(--serif); font-weight: 900; font-size: 20px; margin: 30px 0 14px; padding-bottom: 8px; border-bottom: 1.5px solid var(--rule); }
   .caption { color: var(--ink-2); font-size: 13px; text-align: center; margin: 10px 0 26px; }
 
   /* ---------- 表單 ---------- */
@@ -632,8 +637,11 @@ const MAX_QUESTIONS = 5;
 function eventForm(d) {
   const f = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input data-k="${k}" value="${esc(d[k])}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
   return `
-    <div id="pv"></div>
-    <p class="caption">群組裡的人會看到這張圖卡</p>
+    <section class="pv-panel" aria-label="圖卡預覽">
+      <div class="pv-label"><span class="tag">圖卡預覽</span><small>群組裡的人會看到這張圖卡</small></div>
+      <div id="pv"></div>
+    </section>
+    <h2 class="form-title">填寫活動資訊</h2>
     <div class="group"><h2>活動</h2>
       ${f('title', '活動名稱', 'maxlength="60"')}
       <div class="row2">
