@@ -12,13 +12,13 @@ const SH = { ROSTER: '名單', EVENTS: '活動', LOG: '報名紀錄', PUBLISHERS
 
 const HEADERS = {
   '名單': ['姓名', '手機', 'LINE userId', 'LINE名稱'],
-  '活動': ['活動代碼', '活動名稱', '日期時間', '地點', '說明', '圖片網址', '按鈕文字', '開放報名', '建立者', '建立時間', '人數上限', '截止時間', '開始時間', '結束時間', '問題'],
+  '活動': ['活動代碼', '活動名稱', '日期時間', '地點', '說明', '圖片網址', '按鈕文字', '開放報名', '建立者', '建立時間', '人數上限', '截止時間', '開始時間', '結束時間', '問題', '色調'],
   '報名紀錄': ['時間', '活動代碼', '活動名稱', '姓名', 'LINE名稱', 'LINE userId', '回答', '回答資料'],
   '發布者': ['LINE userId', '名稱', '備註'],
 };
 
 // 「活動」工作表的欄位位置（從 0 開始）
-const EV = { ID: 0, TITLE: 1, DATE: 2, PLACE: 3, DESC: 4, IMAGE: 5, BUTTON: 6, OPEN: 7, CREATOR: 8, CREATED: 9, CAP: 10, DEADLINE: 11, START: 12, END: 13, QUESTIONS: 14 };
+const EV = { ID: 0, TITLE: 1, DATE: 2, PLACE: 3, DESC: 4, IMAGE: 5, BUTTON: 6, OPEN: 7, CREATOR: 8, CREATED: 9, CAP: 10, DEADLINE: 11, START: 12, END: 13, QUESTIONS: 14, THEME: 15 };
 
 /** 建立工作表並補齊標題列；更新程式後再執行一次也安全（第一次會要求雲端硬碟權限，用來存上傳的圖片） */
 function setup() {
@@ -35,7 +35,7 @@ function setup() {
 }
 
 function doGet() {
-  return json({ ok: true, msg: '報名系統運作中' });
+  return json({ ok: true, msg: '活動登記系統運作中' });
 }
 
 function doPost(e) {
@@ -137,15 +137,20 @@ function cleanQuestions(list) {
   }).filter(x => x.q).slice(0, 5);
 }
 
+/** 圖卡色調代碼（顏色定義在網頁那邊）；沒填或不認得就用經典色 */
+const THEMES = ['classic', 'feast', 'prayer', 'gospel', 'youth', 'kids', 'study', 'service'];
+function cleanTheme(v) { v = String(v || '').trim(); return THEMES.includes(v) ? v : 'classic'; }
+
 function rowToEvent(r) {
   return {
     id: String(r[EV.ID]), title: String(r[EV.TITLE]),
     date: r[EV.DATE] instanceof Date ? fmt(r[EV.DATE]) : String(r[EV.DATE] || ''),
     place: String(r[EV.PLACE] || ''), desc: String(r[EV.DESC] || ''), image: String(r[EV.IMAGE] || ''),
-    button: String(r[EV.BUTTON] || '我要報名'), open: isTrue(r[EV.OPEN]),
+    button: String(r[EV.BUTTON] || '我要登記'), open: isTrue(r[EV.OPEN]),
     capacity: parseInt(r[EV.CAP], 10) || 0, deadline: normTime(r[EV.DEADLINE]),
     start: normTime(r[EV.START]), end: normTime(r[EV.END]),
     questions: cleanQuestions(parseJson(r[EV.QUESTIONS], [])),
+    theme: cleanTheme(r[EV.THEME]),
   };
 }
 
@@ -179,10 +184,11 @@ function cleanEventInput(ev) {
     place: String(ev.place || '').trim(),
     desc: String(ev.desc || '').trim(),
     image: /^https:\/\//.test(ev.image || '') ? String(ev.image).trim() : '',
-    button: String(ev.button || '我要報名').trim().slice(0, 20) || '我要報名',
+    button: String(ev.button || '我要登記').trim().slice(0, 20) || '我要登記',
     capacity: Math.max(0, parseInt(ev.capacity, 10) || 0),
     deadline: normTime(ev.deadline),
     questions,
+    theme: cleanTheme(ev.theme),
   };
 }
 
@@ -232,7 +238,7 @@ function createEvent(user, input) {
   const id = 'E' + fmt(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
   const row = [id, ev.title, ev.date, ev.place, ev.desc, ev.image, ev.button, true,
     user.displayName + ' (' + user.userId + ')', new Date(), ev.capacity || '', ev.deadline,
-    ev.start, ev.end, JSON.stringify(ev.questions)];
+    ev.start, ev.end, JSON.stringify(ev.questions), ev.theme];
   sheet(SH.EVENTS).appendRow(row);
   return withStats(rowToEvent(row), []);
 }
@@ -243,7 +249,7 @@ function updateEvent(id, input) {
     const f = findEventRow(id);
     const sh = sheet(SH.EVENTS);
     sh.getRange(f.index, EV.TITLE + 1, 1, 6).setValues([[ev.title, ev.date, ev.place, ev.desc, ev.image, ev.button]]);
-    sh.getRange(f.index, EV.CAP + 1, 1, 5).setValues([[ev.capacity || '', ev.deadline, ev.start, ev.end, JSON.stringify(ev.questions)]]);
+    sh.getRange(f.index, EV.CAP + 1, 1, 6).setValues([[ev.capacity || '', ev.deadline, ev.start, ev.end, JSON.stringify(ev.questions), ev.theme]]);
     return withStats(getEvent(id));
   });
 }

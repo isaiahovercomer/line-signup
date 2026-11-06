@@ -60,7 +60,7 @@
   .subbar h1 { font-size: 17px; margin: 0; }
 
   /* ---------- 票券（圖卡預覽） ---------- */
-  .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+  .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); border-top: 6px solid var(--line); } /* 上方色帶＝活動色調 */
   .ticket .hero { width: 100%; aspect-ratio: 20 / 13; object-fit: cover; display: block; background: var(--rule); }
   .ticket .main { padding: 20px 22px 18px; }
   .ticket .title { font-family: var(--serif); font-weight: 900; font-size: 24px; line-height: 1.35; margin: 0 0 12px; word-break: break-word; }
@@ -154,6 +154,10 @@
 
   /* ---------- 已發布列表 ---------- */
   .stubs { display: grid; gap: 12px; }
+  .tones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tones button { border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 9px 2px 7px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .tones i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--sw) 0 58%, var(--sw2) 58%); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); }
+  .tones button[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); font-weight: 700; }
   .stub-card { background: var(--paper); border-radius: 14px; display: grid; grid-template-columns: 1fr auto; overflow: hidden; border: 0; padding: 0; text-align: left; width: 100%; cursor: pointer; }
   .stub-card .info { padding: 14px 16px; min-width: 0; }
   .stub-card .t { font-family: var(--serif); font-weight: 900; font-size: 17px; line-height: 1.4; word-break: break-word; }
@@ -222,7 +226,7 @@
   .members .acts button.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
   .bound { color: var(--gold-text); font-weight: 500; }
 
-  /* ---------- 成員報名畫面 ---------- */
+  /* ---------- 成員登記畫面 ---------- */
   .solo { padding-top: 40px; }
   .solo .ticket { overflow: visible; }
   .solo .ticket .main { padding-top: 26px; }
@@ -313,7 +317,7 @@ const isHttps = u => /^https:\/\//.test(u || '');
 const liffUrl = id => `https://liff.line.me/${LIFF_ID}?event=${encodeURIComponent(id)}`;
 const shareUrl = id => `https://liff.line.me/${LIFF_ID}?share=${encodeURIComponent(id)}`;
 
-const STATE_TEXT = { open: '報名中', full: '已額滿', ended: '已截止', closed: '已停止' };
+const STATE_TEXT = { open: '登記中', full: '已額滿', ended: '已截止', closed: '已停止' };
 const stateTag = s => `<span class="state ${s || 'open'}">${STATE_TEXT[s] || STATE_TEXT.open}</span>`;
 
 /** 「2026-11-07 23:59」→「11/7 23:59」 */
@@ -333,8 +337,8 @@ function toast(msg) {
 const demo = {
   me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
   events: [
-    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要報名', open: true, capacity: 60, deadline: '2026-12-18 21:00', questions: [{ q: '我可以預備？', options: [] }, { q: '同行人數', options: [] }, { q: '所屬大區？', options: Array.from({ length: 41 }, (_, i) => `${i + 1}大區`) }] },
-    { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [] },
+    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要登記', open: true, capacity: 60, deadline: '2026-12-18 21:00', theme: 'feast', questions: [{ q: '我可以預備？', options: [] }, { q: '同行人數', options: [] }, { q: '所屬大區？', options: Array.from({ length: 41 }, (_, i) => `${i + 1}大區`) }] },
+    { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [], theme: 'study' },
   ],
   log: {
     E1: [['11/5 20:14', '王小明', '小明', ['水果', '2', '3大區']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1', '3大區']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3', '12大區']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
@@ -431,13 +435,28 @@ async function main() {
 }
 
 /* ================= 共用：票券 ================= */
+/** 圖卡色調：依活動性質挑，平台頁面本身不受影響 */
+const THEMES = {
+  classic: { name: '經典',     btn: '#2F3343', notch: '#C49356', paper: '#FFFDF8', ink: '#2F3343', muted: '#67645F', line: '#E4DCCC' },
+  feast:   { name: '愛筵聚餐', btn: '#9A3B26', notch: '#E0A458', paper: '#FFF8F1', ink: '#3A2A22', muted: '#7A6457', line: '#EEDCCB' },
+  prayer:  { name: '禱告',     btn: '#2B4C7E', notch: '#9DB4D3', paper: '#F6F8FC', ink: '#1F2D44', muted: '#5D6B80', line: '#D9E1EE' },
+  gospel:  { name: '福音外展', btn: '#2E6B4F', notch: '#A8C686', paper: '#F6FAF4', ink: '#1F3A2D', muted: '#5B6E62', line: '#D7E5D4' },
+  youth:   { name: '青年',     btn: '#6B3FA0', notch: '#F2B84B', paper: '#FBF8FF', ink: '#2E2240', muted: '#6C6280', line: '#E4DCF0' },
+  kids:    { name: '兒童',     btn: '#B4470F', notch: '#F4C542', paper: '#FFFBEF', ink: '#3B2A12', muted: '#7A6A50', line: '#F0E2C2' },
+  study:   { name: '讀經成全', btn: '#5B4636', notch: '#C9A66B', paper: '#FAF6EF', ink: '#33281F', muted: '#6F6255', line: '#E6DCCB' },
+  service: { name: '服事',     btn: '#1F6F78', notch: '#8FC1C7', paper: '#F4FAFA', ink: '#173B40', muted: '#587073', line: '#D3E6E8' },
+};
+const themeOf = ev => THEMES[ev && ev.theme] || THEMES.classic;
+const randomTheme = not => { const ids = Object.keys(THEMES).filter(k => k !== not); return ids[Math.floor(Math.random() * ids.length)]; };
+const themeVars = t => `--paper:${t.paper};--line:${t.btn};--marigold:${t.notch};--ink:${t.ink};--ink-2:${t.muted};--rule:${t.line}`;
+
 function ticket(ev, stubHtml, extra = '') {
   const meta = [];
   if (ev.date) meta.push(`<dt>時間</dt><dd>${esc(ev.date)}</dd>`);
   if (ev.place) meta.push(`<dt>地點</dt><dd>${esc(ev.place)}</dd>`);
   if (+ev.capacity) meta.push(`<dt>名額</dt><dd>${+ev.capacity} 人</dd>`);
   if (shortTime(ev.deadline)) meta.push(`<dt>截止</dt><dd>${shortTime(ev.deadline)}</dd>`);
-  return `<article class="ticket">
+  return `<article class="ticket" style="${themeVars(themeOf(ev))}">
     ${extra}
     ${/^(https:|data:image\/)/.test(ev.image || '') ? `<img class="hero" src="${esc(ev.image)}" alt="" onerror="this.remove()">` : ''}
     <div class="main">
@@ -464,7 +483,7 @@ async function forwardFlow(id) {
   $('go').onclick = async () => { if (await share(event) && liff.isInClient()) liff.closeWindow(); };
 }
 
-/* ================= 成員：一鍵報名 ================= */
+/* ================= 成員：一鍵登記 ================= */
 async function memberFlow(eventId) {
   view(loading());
   showResult(await api('register', { eventId }), eventId);
@@ -484,27 +503,27 @@ function showResult(r, eventId) {
   const cap = ev.capacity ? `／${ev.capacity}` : '';
   switch (r.status) {
     case 'registered':
-      done('已報名', '', `${esc(r.name)}，報名完成。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
+      done('已登記', '', `${esc(r.name)}，登記完成。`, `目前 ${ev.count || (r.names || []).length} 人登記${cap}。`);
       postRoll(ev, r.names || [r.name], r.name);
       break;
     case 'already':
-      done('已報名', '', `${esc(r.name)}，你之前就報名了。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
+      done('已登記', '', `${esc(r.name)}，你之前就登記了。`, `目前 ${ev.count || (r.names || []).length} 人登記${cap}。`);
       addRepostButton(ev, r.names, r.name);
       if ((ev.questions || []).length) addEditAnswersButton(eventId, ev, r.name, r.answers || []);
       addCancelButton(eventId, r.name);
       break;
     case 'full':        done('額滿', 'ink', '名額已經滿了。', '想候補請直接聯絡主辦人。'); break;
-    case 'ended':       done('截止', 'ink', '報名時間已經過了。', '有問題請直接聯絡主辦人。'); break;
-    case 'closed':      done('截止', 'ink', '這個活動已經停止報名。', '有問題請直接聯絡主辦人。'); break;
+    case 'ended':       done('截止', 'ink', '登記時間已經過了。', '有問題請直接聯絡主辦人。'); break;
+    case 'closed':      done('截止', 'ink', '這個活動已經停止登記。', '有問題請直接聯絡主辦人。'); break;
     case 'updated':
-      done('已報名', '', `${esc(r.name)}，回答已更新。`, `目前 ${ev.count} 人報名${cap}。`);
+      done('已登記', '', `${esc(r.name)}，回答已更新。`, `目前 ${ev.count} 人登記${cap}。`);
       if (r.names) postRoll(ev, r.names, r.name, '更新了回答');
       break;
     case 'cancelled':
-      done('已取消', 'ink', `${esc(r.name)}，已取消你的報名。`, `目前 ${ev.count} 人報名${cap}。想參加可以再按一次圖卡報名。`);
-      if (r.names) postRoll(ev, r.names, r.name, '取消了報名');
+      done('已取消', 'ink', `${esc(r.name)}，已取消你的登記。`, `目前 ${ev.count} 人登記${cap}。想參加可以再按一次圖卡登記。`);
+      if (r.names) postRoll(ev, r.names, r.name, '取消了登記');
       break;
-    case 'not_registered': done('未報名', 'ink', '你目前沒有報名這個活動。', '想參加請再按一次圖卡報名。'); break;
+    case 'not_registered': done('未登記', 'ink', '你目前沒有登記這個活動。', '想參加請再按一次圖卡登記。'); break;
     case 'need_bind':   bindForm(eventId, ev); break;
     case 'need_answers': answerForm(eventId, ev, r.name); break;
     case 'not_found':   bindForm(eventId, ev, '名單裡找不到這組姓名和手機。請確認輸入正確，或聯絡主辦人把你加進名單。'); break;
@@ -513,15 +532,15 @@ function showResult(r, eventId) {
   }
 }
 
-/** 以報名者名義在原本的聊天室貼出最新的接龍名單 */
-async function postRoll(ev, names, who, verb = '報名了') {
+/** 以登記者名義在原本的聊天室貼出最新的接龍名單 */
+async function postRoll(ev, names, who, verb = '登記了') {
   const note = $('posted');
   const say = t => { note.hidden = false; note.textContent = t; };
   if (DEMO) return say('預覽模式：正式版會在群組貼出最新名單');
   const ctx = liff.isInClient() ? liff.getContext() : null;
   const type = ctx && ctx.type;
   if (!['group', 'room', 'utou'].includes(type)) {
-    return say(`名單沒有貼出：要從群組裡的圖卡打開才能貼（目前是 ${type || '外部瀏覽器'}）。報名本身已完成。`);
+    return say(`名單沒有貼出：要從群組裡的圖卡打開才能貼（目前是 ${type || '外部瀏覽器'}）。登記本身已完成。`);
   }
   try {
     // 還沒同意「傳送訊息到聊天室」就先請他同意
@@ -530,33 +549,33 @@ async function postRoll(ev, names, who, verb = '報名了') {
       if (p && p.state === 'prompt') await liff.permission.requestAll().catch(() => {});
     }
     await liff.sendMessages([buildRollFlex(ev, names, who, verb)]);
-    say('已在聊天室更新報名名單');
+    say('已在聊天室更新登記名單');
     return true;
   } catch (e) {
-    say(`名單沒有貼到聊天室（${e.code ? e.code + '：' : ''}${e.message}）。報名本身已完成。`);
+    say(`名單沒有貼到聊天室（${e.code ? e.code + '：' : ''}${e.message}）。登記本身已完成。`);
     return false;
   }
 }
 
-/** 取消報名：按兩下確認 */
+/** 取消登記：按兩下確認 */
 function addCancelButton(eventId, name) {
   const box = document.querySelector('.solo');
   if (!box) return;
   const b = document.createElement('button');
-  b.className = 'btn cancel'; b.style.marginTop = '10px'; b.textContent = '取消報名';
+  b.className = 'btn cancel'; b.style.marginTop = '10px'; b.textContent = '取消登記';
   b.onclick = () => {
     if (!b.classList.contains('armed')) {
-      b.classList.add('armed'); b.textContent = '確定取消報名？再按一次';
-      setTimeout(() => { if (b.isConnected && !b.disabled) { b.classList.remove('armed'); b.textContent = '取消報名'; } }, 4000);
+      b.classList.add('armed'); b.textContent = '確定取消登記？再按一次';
+      setTimeout(() => { if (b.isConnected && !b.disabled) { b.classList.remove('armed'); b.textContent = '取消登記'; } }, 4000);
       return;
     }
     b.disabled = true; b.textContent = '取消中';
-    api('cancel', { eventId }).then(r => showResult(r, eventId)).catch(e => { toast(e.message); b.disabled = false; b.classList.remove('armed'); b.textContent = '取消報名'; });
+    api('cancel', { eventId }).then(r => showResult(r, eventId)).catch(e => { toast(e.message); b.disabled = false; b.classList.remove('armed'); b.textContent = '取消登記'; });
   };
   box.appendChild(b);
 }
 
-/** 已報名的人可以手動在群組貼出目前名單 */
+/** 已登記的人可以手動在群組貼出目前名單 */
 function addRepostButton(ev, names, who) {
   const box = document.querySelector('.solo');
   if (!box || !names || !names.length) return;
@@ -566,7 +585,7 @@ function addRepostButton(ev, names, who) {
   box.insertBefore(b, box.querySelector('.ticket').nextSibling); // 放在「回到聊天室」上面
 }
 
-/** 活動設定的問題，報名時一起填 */
+/** 活動設定的問題，登記時一起填 */
 /** 問題可能是舊格式的文字，或 { q, options }；有 options 就是下拉選單 */
 const qText = q => typeof q === 'string' ? q : (q && q.q) || '';
 const qOpts = q => (q && Array.isArray(q.options)) ? q.options : [];
@@ -579,13 +598,13 @@ function bindForm(eventId, ev, warn = '') {
   const hasQ = (ev.questions || []).length > 0;
   view(`<section class="solo">
     ${ticket(ev, `<div class="result-msg">
-        <p><b>第一次報名，請留下姓名和手機</b></p>
-        <p class="muted" style="margin-bottom:14px">姓名和手機只要填這一次，之後按圖卡就直接報名。</p>
+        <p><b>第一次登記，請留下姓名和手機</b></p>
+        <p class="muted" style="margin-bottom:14px">姓名和手機只要填這一次，之後按圖卡就直接登記。</p>
         ${warn ? `<p class="warn" role="alert">${esc(warn)}</p>` : ''}
         <label class="field"><span>姓名</span><input id="f-name" autocomplete="name"></label>
         <label class="field"><span>手機</span><input id="f-phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0912345678"></label>
         ${questionFields(ev)}
-        <button id="f-go" class="btn send" style="margin-top:6px">確認並報名</button>
+        <button id="f-go" class="btn send" style="margin-top:6px">確認並登記</button>
       </div>`)}
   </section>`);
   const btn = $('f-go');
@@ -596,12 +615,12 @@ function bindForm(eventId, ev, warn = '') {
       if (hasQ) body.answers = collectAnswers(ev);
       showResult(await api('bind', body), eventId);
     } catch (e) {
-      toast(e.message); btn.disabled = false; btn.textContent = '確認並報名';
+      toast(e.message); btn.disabled = false; btn.textContent = '確認並登記';
     }
   };
 }
 
-/** 已報名的人可以修改回答 */
+/** 已登記的人可以修改回答 */
 function addEditAnswersButton(eventId, ev, name, answers) {
   const box = document.querySelector('.solo');
   if (!box) return;
@@ -615,10 +634,10 @@ function answerForm(eventId, ev, name, current) {
   const editing = Array.isArray(current);
   view(`<section class="solo">
     ${ticket(ev, `<div class="result-msg">
-        <p><b>${esc(name)}，${editing ? '修改你的回答' : '報名前請回答'}</b></p>
+        <p><b>${esc(name)}，${editing ? '修改你的回答' : '登記前請回答'}</b></p>
         <p class="muted" style="margin-bottom:14px">回答會顯示在群組的接龍名單上。</p>
         ${questionFields(ev)}
-        <button id="f-go" class="btn send" style="margin-top:6px">${editing ? '儲存回答' : '送出報名'}</button>
+        <button id="f-go" class="btn send" style="margin-top:6px">${editing ? '儲存回答' : '送出登記'}</button>
       </div>`)}
   </section>`);
   if (editing) current.forEach((v, i) => { const el = document.querySelector(`[data-ans="${i}"]`); if (el) el.value = v || ''; });
@@ -632,7 +651,7 @@ function answerForm(eventId, ev, name, current) {
 
 /* ================= 發布者平台 ================= */
 let ME = null, EVENTS = [], MEMBERS = null, TAB = 'new', ROUTE = { view: 'tabs' };
-const blankDraft = () => ({ title: '', start: '', end: '', date: '', place: '', desc: '', image: '', button: '我要報名', capacity: '', deadline: '', questions: [] });
+const blankDraft = () => ({ title: '', start: '', end: '', date: '', place: '', desc: '', image: '', button: '我要登記', capacity: '', deadline: '', questions: [], theme: randomTheme() });
 let draft = blankDraft();
 let editDraft = null;
 
@@ -704,12 +723,18 @@ function eventForm(d) {
       </div>
       ${f('place', '地點')}
     </div>
+    <div class="group"><h2>圖卡色調</h2>
+      <div class="tones" role="radiogroup" aria-label="圖卡色調">
+        ${Object.entries(THEMES).map(([id, t]) => `<button type="button" role="radio" aria-checked="${d.theme === id}" data-tone="${id}" style="--sw:${t.btn};--sw2:${t.notch}"><i aria-hidden="true"></i><span>${t.name}</span></button>`).join('')}
+      </div>
+      <button type="button" class="btn plain small" id="tone-random" style="margin-top:10px">隨機換一個</button>
+    </div>
     <div class="group"><h2>名額與截止</h2>
       <div class="row2">
         ${f('capacity', '人數上限', 'type="number" inputmode="numeric" min="0" placeholder="不限"')}
-        ${f('deadline', '報名截止', 'type="datetime-local"')}
+        ${f('deadline', '登記截止', 'type="datetime-local"')}
       </div>
-      <div class="help">都可以留白。額滿或過了截止時間，報名會自動停止。</div>
+      <div class="help">都可以留白。額滿或過了截止時間，登記會自動停止。</div>
     </div>
     <div class="group"><h2>內容</h2>
       <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea></label>
@@ -723,7 +748,7 @@ function eventForm(d) {
       </div>
       ${f('button', '按鈕文字', 'maxlength="20"')}
     </div>
-    <div class="group"><h2>報名時要問的問題</h2>
+    <div class="group"><h2>登記時要問的問題</h2>
       <div class="help" style="margin:-4px 0 10px">選填。回答會跟名字一起顯示在接龍名單，例如「林剛強，10大區」。</div>
       <div id="q-list"></div>
       <div class="chips" id="q-chips"></div>
@@ -738,6 +763,9 @@ function bindEventForm(d) {
   }));
   $('img-file').onchange = e => uploadPicked(e.target, d);
   $('img-clear').onclick = () => { d.image = ''; document.querySelector('[data-k=image]').value = ''; $('img-clear').hidden = true; preview(d); };
+  const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); };
+  document.querySelectorAll('[data-tone]').forEach(b => b.onclick = () => setTone(b.dataset.tone));
+  $('tone-random').onclick = () => setTone(randomTheme(d.theme));
   drawQuestions(d);
   preview(d);
 }
@@ -746,7 +774,7 @@ const optionsPreview = t => {
   const o = splitOptions(t);
   if (!o.length) return '至少要填一個選項';
   const shown = o.length > 8 ? [...o.slice(0, 3), '…', o[o.length - 1]] : o;
-  return `報名的人會看到 ${o.length} 個選項：${shown.map(esc).join('、')}`;
+  return `登記的人會看到 ${o.length} 個選項：${shown.map(esc).join('、')}`;
 };
 
 /** 問題清單：已加的問題可改字、切換回答方式或刪除，下面是常用問題與「新增問題」 */
@@ -838,12 +866,12 @@ function fmtRange(start, end) {
 
 function preview(d) {
   $('pv').innerHTML = ticket({ ...d, title: d.title.trim(), date: fmtRange(d.start, d.end) || d.date },
-    `<div class="stub"><span class="notch"></span><span class="fake-btn">${esc(d.button.trim() || '我要報名')}</span></div>`);
+    `<div class="stub"><span class="notch"></span><span class="fake-btn">${esc(d.button.trim() || '我要登記')}</span></div>`);
 }
 
 const toPayload = d => ({
   ...d,
-  button: d.button.trim() || '我要報名',
+  button: d.button.trim() || '我要登記',
   start: (d.start || '').replace('T', ' '), end: (d.end || '').replace('T', ' '), deadline: (d.deadline || '').replace('T', ' '),
   questions: d.questions.filter(q => q.q.trim()).map(q => ({ q: q.q.trim(), options: q.type === 'select' ? splitOptions(q.optionsText) : [] })),
 });
@@ -882,13 +910,13 @@ function renderSent() {
     return;
   }
   panel.innerHTML = `<div class="stubs">${EVENTS.map(e => `
-    <button class="stub-card" data-open="${esc(e.id)}">
+    <button class="stub-card" data-open="${esc(e.id)}" style="border-left: 6px solid ${themeOf(e).btn}">
       <div class="info">
         <div class="t">${esc(e.title)}</div>
         <div class="d">${esc(e.date || '未填時間')}${ME.isAdmin && e.creator ? `　由 ${esc(e.creator)} 建立` : ''}</div>
         ${stateTag(e.state)}
       </div>
-      <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人報名'}</small></div>
+      <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人登記'}</small></div>
     </button>`).join('')}</div>`;
   panel.querySelectorAll('[data-open]').forEach(b => b.onclick = () => go({ view: 'detail', id: b.dataset.open }));
 }
@@ -905,16 +933,16 @@ async function renderDetail(id) {
 
   view(`
     <div class="subbar"><button class="back" id="back">‹ 已發布</button><button class="btn plain small" id="edit">編輯</button></div>
-    ${ticket(ev, `<div class="stub tally"><b>${ev.count}</b><span>${ev.capacity ? `／${ev.capacity} 人` : '人報名'}</span>${stateTag(ev.state)}</div>`)}
+    ${ticket(ev, `<div class="stub tally"><b>${ev.count}</b><span>${ev.capacity ? `／${ev.capacity} 人` : '人登記'}</span>${stateTag(ev.state)}</div>`)}
     <div class="btn-row">
       <button class="btn send" id="share">發送到群組</button>
-      <button class="btn plain" id="toggle">${ev.open ? '停止報名' : '重新開放'}</button>
+      <button class="btn plain" id="toggle">${ev.open ? '停止登記' : '重新開放'}</button>
     </div>
     ${statsHtml(ev, list)}
-    <div class="roll-head"><h2>報名名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
+    <div class="roll-head"><h2>登記名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
     ${list.length ? `<ol class="roll">${list.map(a => `
         <li><span class="nm">${esc(a.name)}${answerText(ev, a) ? `<small class="ans">${esc(answerText(ev, a))}</small>` : ''}${a.lineName && a.lineName !== a.name ? `<small>LINE：${esc(a.lineName)}</small>` : ''}</span><time>${esc(a.time)}</time></li>`).join('')}</ol>`
-      : `<div class="empty">還沒有人報名。把圖卡發到群組，大家就能一鍵報名。</div>`}
+      : `<div class="empty">還沒有人登記。把圖卡發到群組，大家就能一鍵登記。</div>`}
     <button class="btn cancel" style="margin-top:28px" id="del">刪除活動</button>`);
 
   $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
@@ -925,7 +953,7 @@ async function renderDetail(id) {
     const b = $('del');
     if (!b.classList.contains('armed')) {
       b.classList.add('armed');
-      b.textContent = list.length ? `確定刪除？${list.length} 筆報名也會一起刪除` : '確定刪除這個活動？';
+      b.textContent = list.length ? `確定刪除？${list.length} 筆登記也會一起刪除` : '確定刪除這個活動？';
       setTimeout(() => { if (b.isConnected && !b.disabled) { b.classList.remove('armed'); b.textContent = '刪除活動'; } }, 4000);
       return;
     }
@@ -939,11 +967,11 @@ async function renderDetail(id) {
   };
   $('toggle').onclick = async () => {
     $('toggle').disabled = true;
-    try { await api('setOpen', { eventId: ev.id, open: !ev.open }); toast(ev.open ? '已停止報名' : '已重新開放報名'); renderDetail(ev.id); }
+    try { await api('setOpen', { eventId: ev.id, open: !ev.open }); toast(ev.open ? '已停止登記' : '已重新開放登記'); renderDetail(ev.id); }
     catch (e) { toast(e.message); $('toggle').disabled = false; }
   };
   if (list.length) $('copy').onclick = () => copyText(
-    `${ev.title}\n報名 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${[a.name].concat((a.answers || []).filter(Boolean)).join('，')}`).join('\n'),
+    `${ev.title}\n登記 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${[a.name].concat((a.answers || []).filter(Boolean)).join('，')}`).join('\n'),
     '已複製名單');
 }
 
@@ -954,12 +982,12 @@ function statsHtml(ev, list) {
   if (!list.length) return '';
   const num = v => { const m = /^\s*(\d+(?:\.\d+)?)\s*(人|位|個|份)?\s*$/.exec(v); return m ? +m[1] : null; };
 
-  // 報名趨勢：每天幾人報名（最近 14 天有報名的日子）
+  // 登記趨勢：每天幾人登記（最近 14 天有登記的日子）
   const days = new Map();
   list.forEach(a => { const d = String(a.time).split(' ')[0]; days.set(d, (days.get(d) || 0) + 1); });
   const dayList = [...days].slice(-14);
   const peak = Math.max(...dayList.map(d => d[1]));
-  const trend = `<div class="stat"><h3>報名趨勢</h3><p class="meta">共 ${list.length} 人，每天報名人數</p>
+  const trend = `<div class="stat"><h3>登記趨勢</h3><p class="meta">共 ${list.length} 人，每天登記人數</p>
     <div class="chart" role="img" aria-label="${dayList.map(([d, n]) => `${d} ${n} 人`).join('，')}">
       ${dayList.map(([d, n]) => `<div class="col"><div class="track"><span class="n">${n}</span><i style="height:${Math.max(6, n / peak * 100)}%"></i></div><span class="d">${esc(d)}</span></div>`).join('')}
     </div></div>`;
@@ -1029,6 +1057,7 @@ function renderEdit(id) {
     start: (ev.start || '').replace(' ', 'T'), end: (ev.end || '').replace(' ', 'T'),
     capacity: ev.capacity ? String(ev.capacity) : '', deadline: (ev.deadline || '').replace(' ', 'T'),
     questions: (ev.questions || []).map(toDraftQuestion),
+    theme: ev.theme || 'classic',
   };
   view(`
     <div class="subbar"><button class="back" id="back">‹ 取消</button><h1>編輯活動</h1><span></span></div>
@@ -1069,7 +1098,7 @@ async function renderMembers() {
       </div>
       <button class="btn ink" type="submit">加入名單</button>
     </form>
-    <p class="summary">共 ${MEMBERS.length} 人，${boundN} 人已綁定 LINE。第一次報名的人會自動加入名單。</p>
+    <p class="summary">共 ${MEMBERS.length} 人，${boundN} 人已綁定 LINE。第一次登記的人會自動加入名單。</p>
     <input class="search" id="q" type="search" placeholder="搜尋姓名或手機" value="${esc(memberQuery)}">
     <ul class="members" id="mlist"></ul>`;
 
@@ -1105,7 +1134,7 @@ function drawMembers() {
   ul.querySelectorAll('[data-unbind]').forEach(b => b.onclick = () => armThen(b, '確定解除？', async () => {
     const m = byRow(b.dataset.unbind);
     MEMBERS = (await api('unbindMember', { row: m.row, name: m.name })).members;
-    toast(`已解除 ${m.name} 的綁定，他下次報名要重新填姓名和手機`); render();
+    toast(`已解除 ${m.name} 的綁定，他下次登記要重新填姓名和手機`); render();
   }));
   ul.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => armThen(b, '確定移除？', async () => {
     const m = byRow(b.dataset.remove);
@@ -1131,7 +1160,7 @@ function armThen(btn, label, fn) {
    之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。
    看過舊版的人不會重看整套，而是跳出「新功能：○○　看介紹」，只介紹新加的步驟。 */
 const TOUR_KEY = 'signup.tour';
-const TOUR_VERSION = 1;
+const TOUR_VERSION = 2; // 2：加入圖卡色調
 const q1 = sel => document.querySelector(sel);
 const groupOf = sel => { const el = q1(sel); return el && (el.closest('.group') || el.closest('.field')); };
 const TOUR_STEPS = [
@@ -1139,22 +1168,24 @@ const TOUR_STEPS = [
     text: '群組裡的人看到的就是這張圖卡。下面每填一個欄位，預覽會立刻跟著更新。' },
   { since: 1, tab: 'new', target: () => groupOf('[data-k=title]'), title: '活動名稱與時間',
     text: '填活動名稱；開始和結束時間用選的，只有開始時間也可以。地點照實寫。' },
-  { since: 1, tab: 'new', target: () => groupOf('[data-k=capacity]'), title: '名額與報名截止',
-    text: '都可以留白。額滿或過了截止時間，報名會自動停止。' },
+  { since: 2, tab: 'new', target: () => q1('.tones') && q1('.tones').closest('.group'), title: '圖卡色調',
+    text: '依活動性質挑一種色調：愛筵聚餐、禱告、福音外展、青年、兒童……也可以按「隨機換一個」。群組裡的圖卡和接龍名單都會換成這個顏色。' },
+  { since: 1, tab: 'new', target: () => groupOf('[data-k=capacity]'), title: '名額與登記截止',
+    text: '都可以留白。額滿或過了截止時間，登記會自動停止。' },
   { since: 1, tab: 'new', target: () => groupOf('.img-pick'), title: '活動圖片',
     text: '按「上傳圖片」直接從手機選照片，會自動縮小後存好；也可以貼圖片網址。' },
-  { since: 1, tab: 'new', target: () => q1('#q-chips') && q1('#q-chips').closest('.group'), title: '報名時要問的問題',
+  { since: 1, tab: 'new', target: () => q1('#q-chips') && q1('#q-chips').closest('.group'), title: '登記時要問的問題',
     text: '點「所屬大區」「所屬會所」「我可以預備？」等常用問題；或按「新增問題」自己寫，每題可選自由填寫或下拉選單。回答會跟名字一起出現在接龍名單。' },
   { since: 1, tab: 'new', target: () => q1('#send'), title: '發送到 LINE 群組',
     text: '填好後按這裡，從 LINE 的選單勾選群組或朋友，可以一次發給好幾個。' },
   { since: 1, tab: 'new', target: () => q1('[data-tab=sent]'), title: '已發布的活動',
     text: '發出去的活動都在這裡，你只會看到自己建立的。' },
   { since: 1, tab: 'sent', target: () => q1('.stub-card') || q1('#panel .empty'), title: '活動詳情與統計',
-    text: '點進活動可以看報名名單、依大區或會所分組的統計、複製名單，也能編輯、停止報名或刪除活動。' },
+    text: '點進活動可以看登記名單、依大區或會所分組的統計、複製名單，也能編輯、停止登記或刪除活動。' },
   { since: 1, admin: true, tab: 'new', target: () => q1('[data-tab=members]'), title: '成員名單',
     text: '只有管理員看得到。所有報過名的人的姓名、手機都在這裡，可以搜尋、解除綁定或移除。' },
   { since: 1, tab: 'new', target: () => q1('#help'), title: '隨時重看教學',
-    text: '報名的人也能自己修改回答、取消報名、轉傳活動給朋友。忘記怎麼用時，按這個「?」再看一次。' },
+    text: '登記的人也能自己修改回答、取消登記、轉傳活動給朋友。忘記怎麼用時，按這個「?」再看一次。' },
 ];
 
 const tourSeen = () => { try { const v = localStorage.getItem(TOUR_KEY); return v == null ? 0 : parseInt(v, 10) || 0; } catch (e) { return TOUR_VERSION; } };
@@ -1281,43 +1312,45 @@ async function share(ev) {
 }
 
 /* ================= 群組裡的圖卡（Flex Message） ================= */
-const flexInfo = (k, v) => ({ type: 'box', layout: 'baseline', spacing: 'md', contents: [
-  { type: 'text', text: k, color: '#67645F', size: 'sm', flex: 0 },
-  { type: 'text', text: String(v), wrap: true, color: '#2F3343', size: 'sm', flex: 1 } ] });
+const flexInfo = (k, v, t) => ({ type: 'box', layout: 'baseline', spacing: 'md', contents: [
+  { type: 'text', text: k, color: t.muted, size: 'sm', flex: 0 },
+  { type: 'text', text: String(v), wrap: true, color: t.ink, size: 'sm', flex: 1 } ] });
 
-const flexButton = (label, ev) => ({ type: 'box', layout: 'vertical', paddingAll: '16px', paddingBottom: '8px', contents: [
+const flexButton = (label, ev) => { const t = themeOf(ev); return { type: 'box', layout: 'vertical', paddingAll: '16px', paddingBottom: '8px', contents: [
   { type: 'box', layout: 'horizontal', spacing: 'md', contents: [
-    { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#C49356', contents: [] },
-    { type: 'button', style: 'primary', color: '#2F3343', height: 'sm', flex: 1,
+    { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: t.notch, contents: [] },
+    { type: 'button', style: 'primary', color: t.btn, height: 'sm', flex: 1,
       action: { type: 'uri', label: String(label).slice(0, 20), uri: liffUrl(ev.id) } } ] },
   // LINE 不一定能長按轉傳這類圖卡，所以附一個轉傳連結
-  { type: 'button', style: 'link', height: 'sm', color: '#67645F', margin: 'sm',
-    action: { type: 'uri', label: '轉傳給其他群組或朋友', uri: shareUrl(ev.id) } } ] });
+  { type: 'button', style: 'link', height: 'sm', color: t.muted, margin: 'sm',
+    action: { type: 'uri', label: '轉傳給其他群組或朋友', uri: shareUrl(ev.id) } } ] }; };
 
 function buildFlex(ev) {
-  const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: '#2F3343' }];
+  const t = themeOf(ev);
+  const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: t.ink }];
   const meta = [];
-  if (ev.date) meta.push(flexInfo('時間', ev.date));
-  if (ev.place) meta.push(flexInfo('地點', ev.place));
-  if (+ev.capacity) meta.push(flexInfo('名額', ev.capacity + ' 人'));
-  if (shortTime(ev.deadline)) meta.push(flexInfo('截止', shortTime(ev.deadline)));
+  if (ev.date) meta.push(flexInfo('時間', ev.date, t));
+  if (ev.place) meta.push(flexInfo('地點', ev.place, t));
+  if (+ev.capacity) meta.push(flexInfo('名額', ev.capacity + ' 人', t));
+  if (shortTime(ev.deadline)) meta.push(flexInfo('截止', shortTime(ev.deadline), t));
   if (meta.length) body.push({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm', contents: meta });
-  if (ev.desc) body.push({ type: 'text', text: ev.desc, size: 'sm', color: '#67645F', wrap: true, margin: 'lg' });
+  if (ev.desc) body.push({ type: 'text', text: ev.desc, size: 'sm', color: t.muted, wrap: true, margin: 'lg' });
 
   const bubble = {
     type: 'bubble',
-    styles: { body: { backgroundColor: '#FFFDF8' }, footer: { backgroundColor: '#FFFDF8' } },
+    styles: { body: { backgroundColor: t.paper }, footer: { backgroundColor: t.paper } },
     body: { type: 'box', layout: 'vertical', paddingAll: '20px', contents: body },
-    footer: flexButton(ev.button || '我要報名', ev),
+    footer: flexButton(ev.button || '我要登記', ev),
   };
   if (isHttps(ev.image)) {
     bubble.hero = { type: 'image', url: ev.image, size: 'full', aspectRatio: '20:13', aspectMode: 'cover', action: { type: 'uri', uri: liffUrl(ev.id) } };
   }
-  return { type: 'flex', altText: `【報名】${ev.title}`.slice(0, 400), contents: bubble };
+  return { type: 'flex', altText: `【登記】${ev.title}`.slice(0, 400), contents: bubble };
 }
 
-/** 接龍卡：列出目前所有報名的人，下面附報名按鈕 */
-function buildRollFlex(ev, names, who, verb = '報名了') {
+/** 接龍卡：列出目前所有登記的人，下面附登記按鈕 */
+function buildRollFlex(ev, names, who, verb = '登記了') {
+  const t = themeOf(ev);
   const n = names.length;
   let list = names.map((x, i) => `${i + 1}. ${x}`).join('\n');
   if (list.length > 1800) list = list.slice(0, 1800) + '\n…';
@@ -1327,14 +1360,14 @@ function buildRollFlex(ev, names, who, verb = '報名了') {
     altText: `${who} ${verb}「${ev.title}」，${count}`.slice(0, 400),
     contents: {
       type: 'bubble', size: 'kilo',
-      styles: { body: { backgroundColor: '#FFFDF8' }, footer: { backgroundColor: '#FFFDF8' } },
+      styles: { body: { backgroundColor: t.paper }, footer: { backgroundColor: t.paper } },
       body: { type: 'box', layout: 'vertical', paddingAll: '18px', contents: [
-        { type: 'text', text: ev.title, weight: 'bold', size: 'md', wrap: true, color: '#2F3343' },
-        { type: 'text', text: count, size: 'xs', color: '#67645F', margin: 'sm' },
-        { type: 'separator', margin: 'md', color: '#E4DCCC' },
-        { type: 'text', text: list || '—', size: 'sm', wrap: true, color: '#2F3343', margin: 'md', lineSpacing: '4px' },
+        { type: 'text', text: ev.title, weight: 'bold', size: 'md', wrap: true, color: t.ink },
+        { type: 'text', text: count, size: 'xs', color: t.muted, margin: 'sm' },
+        { type: 'separator', margin: 'md', color: t.line },
+        { type: 'text', text: list || '—', size: 'sm', wrap: true, color: t.ink, margin: 'md', lineSpacing: '4px' },
       ] },
-      footer: flexButton('我也要報名', ev),
+      footer: flexButton('我也要登記', ev),
     },
   };
 }
