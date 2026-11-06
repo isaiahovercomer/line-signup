@@ -193,6 +193,7 @@
   .stamp.land { animation: land .42s cubic-bezier(.2,1.4,.4,1) both; }
   @keyframes land { from { transform: rotate(-14deg) scale(2.2); opacity: 0; } to { transform: rotate(-14deg) scale(1); opacity: .9; } }
   .solo .ticket .title { padding-right: 100px; }
+  .stamp + .main dl { margin-right: 76px; } /* 沒有圖片時，印章會落在內文上 */
   .warn { background: #FBECEC; color: #8E1F27; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 0 0 12px; }
   .posted { margin-top: 10px; font-size: 13px; color: var(--line-dark); }
 
@@ -233,6 +234,7 @@ const $ = id => document.getElementById(id);
 const loading = () => `<div class="loading" role="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
 const isHttps = u => /^https:\/\//.test(u || '');
 const liffUrl = id => `https://liff.line.me/${LIFF_ID}?event=${encodeURIComponent(id)}`;
+const shareUrl = id => `https://liff.line.me/${LIFF_ID}?share=${encodeURIComponent(id)}`;
 
 const STATE_TEXT = { open: '報名中', full: '已額滿', ended: '已截止', closed: '已停止' };
 const stateTag = s => `<span class="state ${s || 'open'}">${STATE_TEXT[s] || STATE_TEXT.open}</span>`;
@@ -286,6 +288,7 @@ async function demoApi(action, d) {
   const names = (demo.log.E1 || []).map(x => [x[1]].concat(x[3].filter(Boolean)).join('，'));
   switch (action) {
     case 'me': return { ok: true, ...demo.me };
+    case 'event': return { ok: true, event: demoEvent(find(d.eventId) || demo.events[0]) };
     case 'listEvents': return { ok: true, events: demo.events.map(demoEvent) };
     case 'eventDetail': {
       const e = find(d.eventId);
@@ -338,7 +341,9 @@ async function main() {
     }
     const eventId = new URLSearchParams(location.search).get('event');
     const demoMember = DEMO && ['member', 'bind', 'answer', 'already', 'full'].includes(PARAMS.get('demo'));
-    if (eventId || demoMember) await memberFlow(eventId || 'E1');
+    const shareId = new URLSearchParams(location.search).get('share');
+    if (shareId) await forwardFlow(shareId);
+    else if (eventId || demoMember) await memberFlow(eventId || 'E1');
     else await publisherFlow();
   } catch (e) {
     view(`<section class="solo">${ticket({ title: '無法開啟' }, `<div class="result-msg"><p>${esc(e.message)}</p><p class="muted">請關閉後從 LINE 重新開啟一次。</p></div>`)}</section>`);
@@ -365,6 +370,20 @@ function ticket(ev, stubHtml, extra = '') {
   </article>`;
 }
 
+/* ================= 轉傳活動給其他群組或朋友 ================= */
+async function forwardFlow(id) {
+  view(loading());
+  const { event } = await api('event', { eventId: id });
+  if (!event) throw new Error('找不到這個活動');
+  document.title = event.title;
+  view(`<section class="solo">
+    ${ticket(event, `<div class="result-msg"><p>把這個活動轉傳給其他群組或朋友。</p><p class="muted">可以一次勾選好幾個。</p></div>`)}
+    <button class="btn send" style="margin-top:18px" id="go">選擇群組或朋友</button>
+    ${liff.isInClient() ? `<button class="btn plain" style="margin-top:10px" onclick="liff.closeWindow()">回到聊天室</button>` : ''}
+  </section>`);
+  $('go').onclick = async () => { if (await share(event) && liff.isInClient()) liff.closeWindow(); };
+}
+
 /* ================= 成員：一鍵報名 ================= */
 async function memberFlow(eventId) {
   view(loading());
@@ -374,11 +393,14 @@ async function memberFlow(eventId) {
 function showResult(r, eventId) {
   const ev = r.event || {};
   if (ev.title) document.title = ev.title;
-  const done = (stamp, cls, line, sub) => view(`<section class="solo">
+  const done = (stamp, cls, line, sub) => { view(`<section class="solo">
       ${ticket(ev, `<div class="result-msg"><p>${line}</p>${sub ? `<p class="muted">${sub}</p>` : ''}<p class="posted" id="posted" hidden></p></div>`,
         `<div class="stamp land ${cls}" aria-hidden="true">${stamp}</div>`)}
-      ${liff.isInClient() ? `<button class="btn plain" style="margin-top:18px" onclick="liff.closeWindow()">回到聊天室</button>` : ''}
+      <button class="btn plain" style="margin-top:18px" id="fwd">分享給朋友</button>
+      ${liff.isInClient() ? `<button class="btn plain" style="margin-top:10px" onclick="liff.closeWindow()">回到聊天室</button>` : ''}
     </section>`);
+    $('fwd').onclick = () => share(ev);
+  };
   const cap = ev.capacity ? `／${ev.capacity}` : '';
   switch (r.status) {
     case 'registered':
@@ -904,10 +926,14 @@ const flexInfo = (k, v) => ({ type: 'box', layout: 'baseline', spacing: 'md', co
   { type: 'text', text: k, color: '#56627A', size: 'sm', flex: 0 },
   { type: 'text', text: String(v), wrap: true, color: '#1C2840', size: 'sm', flex: 1 } ] });
 
-const flexButton = (label, ev) => ({ type: 'box', layout: 'horizontal', spacing: 'md', paddingAll: '16px', contents: [
-  { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#F2B632', contents: [] },
-  { type: 'button', style: 'primary', color: '#06C755', height: 'sm', flex: 1,
-    action: { type: 'uri', label: String(label).slice(0, 20), uri: liffUrl(ev.id) } } ] });
+const flexButton = (label, ev) => ({ type: 'box', layout: 'vertical', paddingAll: '16px', paddingBottom: '8px', contents: [
+  { type: 'box', layout: 'horizontal', spacing: 'md', contents: [
+    { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#F2B632', contents: [] },
+    { type: 'button', style: 'primary', color: '#06C755', height: 'sm', flex: 1,
+      action: { type: 'uri', label: String(label).slice(0, 20), uri: liffUrl(ev.id) } } ] },
+  // LINE 不一定能長按轉傳這類圖卡，所以附一個轉傳連結
+  { type: 'button', style: 'link', height: 'sm', color: '#56627A', margin: 'sm',
+    action: { type: 'uri', label: '轉傳給其他群組或朋友', uri: shareUrl(ev.id) } } ] });
 
 function buildFlex(ev) {
   const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: '#1C2840' }];
