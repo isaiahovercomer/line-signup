@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#DDE7EF">
+<meta name="theme-color" content="#2F3343">
+<link rel="icon" href="img/in-christ.svg" type="image/svg+xml">
+<link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png" sizes="180x180">
 <title>LINE簡易活動登記建立平台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,15 +14,23 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
-    --sky: #DDE7EF;        /* 頁面底色 */
-    --paper: #FFFFFF;      /* 票券紙 */
-    --ink: #1C2840;        /* 主要文字 */
-    --ink-2: #56627A;      /* 次要文字 */
-    --rule: #C9D5E1;       /* 分隔、邊框 */
-    --marigold: #F2B632;   /* 票根強調 */
-    --line: #06C755;       /* 會送到 LINE 的動作 */
-    --line-dark: #049C42;
-    --stamp: #C8323C;      /* 印章紅 */
+    /* 配色取自聖經網站的 IN CHRIST 配色：米白紙、海軍藍、金 */
+    --sky: #FAF6EE;        /* 頁面底色（暖米白） */
+    --sky-2: #F0E9DB;      /* 次要底色 */
+    --paper: #FFFDF8;      /* 票券紙 */
+    --ink: #2F3343;        /* 主要文字（海軍藍） */
+    --ink-2: #67645F;      /* 次要文字 */
+    --rule: #E4DCCC;       /* 分隔、邊框 */
+    --marigold: #C49356;   /* 金色點綴、票根 */
+    --gold-text: #8A6431;  /* 米白底上的金色文字 */
+    --gold-soft: rgba(196, 147, 86, .16);
+    --line: #2F3343;       /* 主要動作按鈕 */
+    --line-dark: #1E2130;
+    --chrome: #2F3343;     /* 頁首橫幅 */
+    --chrome-fg: #F7F1E4;
+    --chrome-muted: #C9C2B3;
+    --stamp: #B03A2E;      /* 印章、刪除（磚紅） */
+    --shadow: 0 1px 2px rgba(60, 40, 20, .05), 0 8px 24px rgba(60, 40, 20, .08);
     --serif: "Noto Serif TC", "Songti TC", serif;
     --sans: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
   }
@@ -32,14 +43,16 @@
   #app { max-width: 480px; margin: 0 auto; padding: 0 16px calc(120px + env(safe-area-inset-bottom)); }
 
   /* ---------- 頂部 ---------- */
-  .top { display: flex; justify-content: space-between; align-items: baseline; padding: 20px 0 6px; }
-  .top h1 { font-family: var(--serif); font-weight: 900; font-size: 26px; letter-spacing: .04em; margin: 0; }
-  .top .who { color: var(--ink-2); font-size: 14px; }
-  .demo-note { background: var(--marigold); color: var(--ink); font-size: 13px; padding: 8px 12px; border-radius: 8px; margin: 8px 0 4px; }
+  header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 -16px; padding: calc(22px + env(safe-area-inset-top)) 16px 18px; background: var(--chrome); color: var(--chrome-fg); border-bottom: 3px solid var(--marigold); }
+  header.top .brand { display: flex; align-items: center; gap: 12px; }
+  header.top .logo { width: 44px; height: 44px; flex: none; }
+  header.top h1 { font-family: var(--serif); font-weight: 900; font-size: 24px; letter-spacing: .06em; margin: 0; color: var(--chrome-fg); }
+  header.top .who { color: var(--chrome-muted); font-size: 14px; white-space: nowrap; }
+  .demo-note { background: var(--gold-soft); color: var(--gold-text); font-size: 13px; padding: 8px 12px; border-radius: 8px; margin: 8px 0 4px; }
 
-  .tabs { display: flex; gap: 22px; border-bottom: 2px solid var(--rule); margin: 10px 0 20px; }
+  .tabs { display: flex; gap: 22px; border-bottom: 2px solid var(--rule); margin: 14px 0 20px; }
   .tabs button { background: none; border: 0; padding: 10px 0; font-size: 16px; font-weight: 500; color: var(--ink-2); border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; }
-  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 700; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--marigold); font-weight: 700; }
   .tabs .n { font-size: 13px; color: var(--ink-2); margin-left: 4px; }
 
   .subbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 14px; }
@@ -47,7 +60,7 @@
   .subbar h1 { font-size: 17px; margin: 0; }
 
   /* ---------- 票券（圖卡預覽） ---------- */
-  .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: 0 1px 0 var(--rule), 0 14px 30px -18px rgba(28,40,64,.45); }
+  .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
   .ticket .hero { width: 100%; aspect-ratio: 20 / 13; object-fit: cover; display: block; background: var(--rule); }
   .ticket .main { padding: 20px 22px 18px; }
   .ticket .title { font-family: var(--serif); font-weight: 900; font-size: 24px; line-height: 1.35; margin: 0 0 12px; word-break: break-word; }
@@ -62,7 +75,7 @@
   .ticket .perf::after { right: -31px; }
   .ticket .stub { padding: 16px 22px 20px; display: flex; align-items: center; gap: 14px; }
   .ticket .stub .notch { width: 8px; align-self: stretch; background: var(--marigold); border-radius: 4px; }
-  .ticket .stub .fake-btn { flex: 1; background: var(--line); color: #fff; text-align: center; font-weight: 700; padding: 11px; border-radius: 10px; }
+  .ticket .stub .fake-btn { flex: 1; background: var(--line); color: var(--chrome-fg); text-align: center; font-weight: 700; padding: 11px; border-radius: 10px; }
   .ticket .tally { display: flex; align-items: baseline; gap: 6px; }
   .ticket .tally b { font-family: var(--serif); font-size: 34px; line-height: 1; }
   .ticket .tally span { color: var(--ink-2); font-size: 14px; }
@@ -90,7 +103,7 @@
   .q-del { width: 46px; flex: none; border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; font-size: 20px; color: var(--ink-2); cursor: pointer; }
   .q-card { background: var(--paper); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
   .q-card .q-row { margin-bottom: 8px; }
-  .q-card .q-row input { background: var(--sky); border-color: transparent; }
+  .q-card .q-row input { background: var(--sky-2); border-color: transparent; }
   .q-type { display: inline-flex; border: 1.5px solid var(--rule); border-radius: 10px; overflow: hidden; }
   .q-type button { border: 0; background: transparent; padding: 6px 14px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
   .q-type button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 700; }
@@ -110,29 +123,29 @@
   .group-block.none .lbl { color: var(--ink-2); }
   .group-block.none .bar i { background: var(--rule); }
   .names { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr)); gap: 6px; }
-  .stat .names li { background: var(--sky); border: 0; border-radius: 8px; padding: 5px 10px; font-size: 14px; word-break: break-word; }
+  .stat .names li { background: var(--sky-2); border: 0; border-radius: 8px; padding: 5px 10px; font-size: 14px; word-break: break-word; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1.5px dashed var(--ink-2); background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--ink); cursor: pointer; }
   .chip.new { border-style: solid; border-color: var(--ink); font-weight: 700; }
 
   /* ---------- 底部固定按鈕 ---------- */
-  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(221,231,239,0)); z-index: 5; }
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(250,246,238,0)); z-index: 5; }
   .dock .inner { max-width: 480px; margin: 0 auto; }
   .btn { display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 700; cursor: pointer; }
-  .btn.send { background: var(--line); color: #fff; box-shadow: 0 6px 16px -8px var(--line-dark); }
+  .btn.send { background: var(--line); color: var(--chrome-fg); box-shadow: 0 6px 16px -8px var(--line-dark); }
   .btn.send:active { background: var(--line-dark); }
-  .btn.ink { background: var(--ink); color: #fff; }
+  .btn.ink { background: var(--ink); color: var(--chrome-fg); }
   .btn.plain { background: var(--paper); color: var(--ink); border: 1.5px solid var(--rule); }
-  .btn.cancel { background: transparent; color: var(--stamp); border: 1.5px solid #EBC3C6; }
+  .btn.cancel { background: transparent; color: var(--stamp); border: 1.5px solid rgba(176, 58, 46, .35); }
   .btn.cancel.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
   .btn.small { display: inline-block; width: auto; padding: 8px 14px; font-size: 14px; border-radius: 10px; }
   .btn:disabled { opacity: .55; cursor: default; }
   .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 
   /* ---------- 狀態標籤 ---------- */
-  .state { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 6px; background: #E6F8EE; color: var(--line-dark); white-space: nowrap; }
-  .state.full { background: #FDF3DA; color: #8A6100; }
-  .state.ended, .state.closed { background: #EEF1F5; color: var(--ink-2); }
+  .state { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 6px; background: var(--gold-soft); color: var(--gold-text); white-space: nowrap; }
+  .state.full { background: rgba(176, 58, 46, .10); color: var(--stamp); }
+  .state.ended, .state.closed { background: var(--sky-2); color: var(--ink-2); }
 
   /* ---------- 已發布列表 ---------- */
   .stubs { display: grid; gap: 12px; }
@@ -175,13 +188,13 @@
   .stat .lbl { font-weight: 700; word-break: break-word; }
   .stat .cnt { color: var(--ink-2); font-size: 13px; white-space: nowrap; }
   .stat .cnt.dup { color: var(--stamp); font-weight: 700; }
-  .stat .bar { height: 8px; background: var(--sky); border-radius: 4px; margin: 6px 0 4px; overflow: hidden; }
-  .stat .bar i { display: block; height: 100%; background: var(--ink); border-radius: 4px; }
+  .stat .bar { height: 8px; background: var(--sky-2); border-radius: 4px; margin: 6px 0 4px; overflow: hidden; }
+  .stat .bar i { display: block; height: 100%; background: var(--marigold); border-radius: 4px; }
   .stat .who { color: var(--ink-2); font-size: 13px; word-break: break-word; }
   .chart { display: flex; align-items: flex-end; gap: 6px; height: 150px; margin-top: 12px; overflow-x: auto; }
   .chart .col { flex: 1; min-width: 28px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
   .chart .track { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-height: 0; }
-  .chart .col i { width: 100%; max-width: 36px; background: var(--line); border-radius: 6px 6px 2px 2px; }
+  .chart .col i { width: 100%; max-width: 36px; background: var(--marigold); border-radius: 6px 6px 2px 2px; }
   .chart .n { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
   .chart .d { font-size: 11px; color: var(--ink-2); margin-top: 5px; white-space: nowrap; }
 
@@ -200,9 +213,9 @@
   .members .line2 { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; color: var(--ink-2); }
   .members .acts { display: flex; gap: 6px; }
   .members .acts button { background: none; border: 1px solid var(--rule); border-radius: 8px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
-  .members .acts button.danger { color: var(--stamp); border-color: #EBC3C6; }
+  .members .acts button.danger { color: var(--stamp); border-color: rgba(176, 58, 46, .35); }
   .members .acts button.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
-  .bound { color: var(--line-dark); }
+  .bound { color: var(--gold-text); font-weight: 500; }
 
   /* ---------- 成員報名畫面 ---------- */
   .solo { padding-top: 40px; }
@@ -211,7 +224,7 @@
   .result-msg { padding: 18px 22px 22px; }
   .result-msg p { margin: 0; }
   .result-msg .muted { color: var(--ink-2); font-size: 14px; margin-top: 4px; }
-  .stamp { position: absolute; right: 18px; top: 18px; width: 96px; height: 96px; border: 4px solid var(--stamp); border-radius: 50%; color: var(--stamp); display: grid; place-items: center; font-family: var(--serif); font-weight: 900; font-size: 22px; letter-spacing: .08em; transform: rotate(-14deg); opacity: .9; background: rgba(255,255,255,.6); }
+  .stamp { position: absolute; right: 18px; top: 18px; width: 96px; height: 96px; border: 4px solid var(--stamp); border-radius: 50%; color: var(--stamp); display: grid; place-items: center; font-family: var(--serif); font-weight: 900; font-size: 22px; letter-spacing: .08em; transform: rotate(-14deg); opacity: .9; background: rgba(255,253,248,.7); }
   .stamp::before { content: ""; position: absolute; inset: 5px; border: 1.5px solid var(--stamp); border-radius: 50%; }
   .stamp.ink { border-color: var(--ink-2); color: var(--ink-2); }
   .stamp.ink::before { border-color: var(--ink-2); }
@@ -220,16 +233,16 @@
   .solo .ticket .title { padding-right: 100px; }
   .stamp + .main dl { margin-right: 96px; } /* 沒有圖片時，印章會落在內文上 */
   .warn { background: #FBECEC; color: #8E1F27; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 0 0 12px; }
-  .posted { margin-top: 10px; font-size: 13px; color: var(--line-dark); }
+  .posted { margin-top: 10px; font-size: 13px; color: var(--gold-text); }
 
   .loading { text-align: center; color: var(--ink-2); padding: 80px 0; }
-  .loading .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); margin: 0 4px; animation: blink 1s infinite; }
+  .loading .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--marigold); margin: 0 4px; animation: blink 1s infinite; }
   .loading .dot:nth-child(2) { animation-delay: .15s; } .loading .dot:nth-child(3) { animation-delay: .3s; }
   @keyframes blink { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
 
   code.uid { display: block; word-break: break-all; background: var(--sky); padding: 10px 12px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
 
-  .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; }
+  .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: var(--chrome-fg); padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
   @media (prefers-reduced-motion: reduce) {
@@ -588,7 +601,7 @@ function render() {
   if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
   const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
   view(`
-    <header class="top"><h1>建立活動登記圖卡</h1><span class="who">${esc(ME.displayName)}</span></header>
+    <header class="top"><div class="brand"><img class="logo" src="img/in-christ.svg" alt="IN CHRIST 標誌" width="44" height="44"><h1>建立活動登記圖卡</h1></div></header>
     ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
@@ -649,7 +662,7 @@ function eventForm(d) {
       ${f('button', '按鈕文字', 'maxlength="20"')}
     </div>
     <div class="group"><h2>報名時要問的問題</h2>
-      <div class="help" style="margin:-4px 0 10px">選填。回答會跟名字一起顯示在接龍名單，例如「簡晨光，三杯雞」。</div>
+      <div class="help" style="margin:-4px 0 10px">選填。回答會跟名字一起顯示在接龍名單，例如「林剛強，10大區」。</div>
       <div id="q-list"></div>
       <div class="chips" id="q-chips"></div>
     </div>`;
@@ -1066,30 +1079,31 @@ async function share(ev) {
 
 /* ================= 群組裡的圖卡（Flex Message） ================= */
 const flexInfo = (k, v) => ({ type: 'box', layout: 'baseline', spacing: 'md', contents: [
-  { type: 'text', text: k, color: '#56627A', size: 'sm', flex: 0 },
-  { type: 'text', text: String(v), wrap: true, color: '#1C2840', size: 'sm', flex: 1 } ] });
+  { type: 'text', text: k, color: '#67645F', size: 'sm', flex: 0 },
+  { type: 'text', text: String(v), wrap: true, color: '#2F3343', size: 'sm', flex: 1 } ] });
 
 const flexButton = (label, ev) => ({ type: 'box', layout: 'vertical', paddingAll: '16px', paddingBottom: '8px', contents: [
   { type: 'box', layout: 'horizontal', spacing: 'md', contents: [
-    { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#F2B632', contents: [] },
-    { type: 'button', style: 'primary', color: '#06C755', height: 'sm', flex: 1,
+    { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: '#C49356', contents: [] },
+    { type: 'button', style: 'primary', color: '#2F3343', height: 'sm', flex: 1,
       action: { type: 'uri', label: String(label).slice(0, 20), uri: liffUrl(ev.id) } } ] },
   // LINE 不一定能長按轉傳這類圖卡，所以附一個轉傳連結
-  { type: 'button', style: 'link', height: 'sm', color: '#56627A', margin: 'sm',
+  { type: 'button', style: 'link', height: 'sm', color: '#67645F', margin: 'sm',
     action: { type: 'uri', label: '轉傳給其他群組或朋友', uri: shareUrl(ev.id) } } ] });
 
 function buildFlex(ev) {
-  const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: '#1C2840' }];
+  const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: '#2F3343' }];
   const meta = [];
   if (ev.date) meta.push(flexInfo('時間', ev.date));
   if (ev.place) meta.push(flexInfo('地點', ev.place));
   if (+ev.capacity) meta.push(flexInfo('名額', ev.capacity + ' 人'));
   if (shortTime(ev.deadline)) meta.push(flexInfo('截止', shortTime(ev.deadline)));
   if (meta.length) body.push({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm', contents: meta });
-  if (ev.desc) body.push({ type: 'text', text: ev.desc, size: 'sm', color: '#56627A', wrap: true, margin: 'lg' });
+  if (ev.desc) body.push({ type: 'text', text: ev.desc, size: 'sm', color: '#67645F', wrap: true, margin: 'lg' });
 
   const bubble = {
     type: 'bubble',
+    styles: { body: { backgroundColor: '#FFFDF8' }, footer: { backgroundColor: '#FFFDF8' } },
     body: { type: 'box', layout: 'vertical', paddingAll: '20px', contents: body },
     footer: flexButton(ev.button || '我要報名', ev),
   };
@@ -1110,11 +1124,12 @@ function buildRollFlex(ev, names, who, verb = '報名了') {
     altText: `${who} ${verb}「${ev.title}」，${count}`.slice(0, 400),
     contents: {
       type: 'bubble', size: 'kilo',
+      styles: { body: { backgroundColor: '#FFFDF8' }, footer: { backgroundColor: '#FFFDF8' } },
       body: { type: 'box', layout: 'vertical', paddingAll: '18px', contents: [
-        { type: 'text', text: ev.title, weight: 'bold', size: 'md', wrap: true, color: '#1C2840' },
-        { type: 'text', text: count, size: 'xs', color: '#56627A', margin: 'sm' },
-        { type: 'separator', margin: 'md', color: '#C9D5E1' },
-        { type: 'text', text: list || '—', size: 'sm', wrap: true, color: '#1C2840', margin: 'md', lineSpacing: '4px' },
+        { type: 'text', text: ev.title, weight: 'bold', size: 'md', wrap: true, color: '#2F3343' },
+        { type: 'text', text: count, size: 'xs', color: '#67645F', margin: 'sm' },
+        { type: 'separator', margin: 'md', color: '#E4DCCC' },
+        { type: 'text', text: list || '—', size: 'sm', wrap: true, color: '#2F3343', margin: 'md', lineSpacing: '4px' },
       ] },
       footer: flexButton('我也要報名', ev),
     },
