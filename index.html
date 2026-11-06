@@ -250,7 +250,40 @@
   .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: var(--chrome-fg); padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+  /* ---------- 頁首的教學按鈕 ---------- */
+  header.top { align-items: center; }
+  header.top .help { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1.5px solid var(--marigold); background: transparent; color: var(--marigold); font-family: var(--serif); font-weight: 900; font-size: 18px; cursor: pointer; }
+
+  /* ---------- 使用教學：變暗＋金框圈出功能＋說明泡泡（樣式取自聖經網站） ---------- */
+  .tour { position: fixed; inset: 0; z-index: 1000; opacity: 0; transition: opacity .22s; }
+  .tour.on { opacity: 1; }
+  .tour-catch { position: absolute; inset: 0; touch-action: none; }
+  .tour-hole { position: absolute; left: 0; top: 0; border-radius: 14px; pointer-events: none;
+    box-shadow: 0 0 0 2px var(--chrome), 0 0 0 5px var(--marigold), 0 0 0 200vmax rgba(16, 18, 28, .72);
+    transition: transform .32s cubic-bezier(.2,.8,.2,1), width .32s cubic-bezier(.2,.8,.2,1), height .32s cubic-bezier(.2,.8,.2,1); }
+  .tour-bubble { position: absolute; left: 0; top: 0; width: min(320px, calc(100vw - 24px)); background: var(--chrome); color: var(--chrome-fg);
+    border: 1px solid var(--marigold); border-radius: 16px; padding: 14px 16px 12px; box-shadow: 0 12px 36px rgba(0,0,0,.35); font-size: 15px; line-height: 1.6;
+    transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+  .tour-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .tour-head h2 { margin: 0; font: 900 17px/1.4 var(--serif); color: #D9A466; letter-spacing: .04em; }
+  .tour-count { flex: none; font-size: 12px; font-weight: 700; color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
+  .tour-bubble p { margin: 6px 0 12px; }
+  .tour-btns { display: flex; align-items: center; gap: 6px; }
+  .tour-btns button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 99px; background: transparent; font-size: 15px; color: var(--chrome-fg); cursor: pointer; }
+  .tour-btns .tour-skip { color: var(--chrome-muted); padding-left: 4px; margin-right: auto; }
+  .tour-btns .tour-next { background: var(--marigold); color: var(--chrome); font-weight: 700; padding: 0 18px; }
+  .tour-btns button:disabled { opacity: .4; cursor: default; }
+  .tour-btns button:focus-visible { outline: 2px solid var(--chrome-fg); outline-offset: 2px; }
+
+  /* ---------- 新功能提示 ---------- */
+  .notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 20; width: min(440px, calc(100% - 24px));
+    display: flex; align-items: center; gap: 8px; background: var(--chrome); color: var(--chrome-fg); border: 1px solid var(--marigold); border-radius: 14px; padding: 10px 8px 10px 14px; box-shadow: 0 10px 28px rgba(0,0,0,.25); font-size: 14px; }
+  .notice span { flex: 1; }
+  .notice #notice-go { border: 0; background: var(--marigold); color: var(--chrome); font-weight: 700; border-radius: 99px; padding: 7px 14px; cursor: pointer; white-space: nowrap; }
+  .notice #notice-x { border: 0; background: transparent; color: var(--chrome-muted); font-size: 20px; width: 32px; cursor: pointer; }
+
   @media (prefers-reduced-motion: reduce) {
+    .tour, .tour-hole, .tour-bubble { transition: none; }
     .stamp.land, .loading .dot { animation: none; }
     .toast { transition: none; }
   }
@@ -259,6 +292,7 @@
 <body>
 <main id="app"><div class="loading" role="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="notice" id="notice" role="status" hidden><span id="notice-text"></span><button type="button" id="notice-go"></button><button type="button" id="notice-x" aria-label="關閉">×</button></div>
 
 <script>
 /* ======== 只需要改這兩行 ======== */
@@ -607,6 +641,7 @@ async function publisherFlow() {
   ME = await api('me'); // 任何人都能發布；ME.isAdmin 為 true 才看得到所有活動與成員名單
   await refreshEvents();
   render();
+  if (!PARAMS.has('notour')) maybeStartTour();
 }
 
 async function refreshEvents() {
@@ -624,7 +659,7 @@ function render() {
   if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
   const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
   view(`
-    <header class="top"><div class="brand"><img class="logo" src="img/in-christ.svg" alt="IN CHRIST 標誌" width="44" height="44"><h1>建立活動登記圖卡</h1></div></header>
+    <header class="top"><div class="brand"><img class="logo" src="img/in-christ.svg" alt="IN CHRIST 標誌" width="44" height="44"><h1>建立活動登記圖卡</h1></div><button class="help" id="help" type="button" aria-label="使用教學">?</button></header>
     ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
@@ -634,6 +669,7 @@ function render() {
     <div id="panel"></div>
     ${dock}`);
   document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; render(); });
+  $('help').onclick = () => startTour(TOUR_STEPS);
   if (TAB === 'new') renderCompose();
   else if (TAB === 'sent') renderSent();
   else renderMembers();
@@ -1088,6 +1124,147 @@ function armThen(btn, label, fn) {
   }
   btn.disabled = true;
   fn().catch(e => { toast(e.message); MEMBERS = null; render(); });
+}
+
+/* ================= 使用教學 =================
+   第一次打開平台：完整教學。localStorage 記住看過的教學版本。
+   之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。
+   看過舊版的人不會重看整套，而是跳出「新功能：○○　看介紹」，只介紹新加的步驟。 */
+const TOUR_KEY = 'signup.tour';
+const TOUR_VERSION = 1;
+const q1 = sel => document.querySelector(sel);
+const groupOf = sel => { const el = q1(sel); return el && (el.closest('.group') || el.closest('.field')); };
+const TOUR_STEPS = [
+  { since: 1, tab: 'new', target: () => q1('.pv-panel'), title: '圖卡預覽',
+    text: '群組裡的人看到的就是這張圖卡。下面每填一個欄位，預覽會立刻跟著更新。' },
+  { since: 1, tab: 'new', target: () => groupOf('[data-k=title]'), title: '活動名稱與時間',
+    text: '填活動名稱；開始和結束時間用選的，只有開始時間也可以。地點照實寫。' },
+  { since: 1, tab: 'new', target: () => groupOf('[data-k=capacity]'), title: '名額與報名截止',
+    text: '都可以留白。額滿或過了截止時間，報名會自動停止。' },
+  { since: 1, tab: 'new', target: () => groupOf('.img-pick'), title: '活動圖片',
+    text: '按「上傳圖片」直接從手機選照片，會自動縮小後存好；也可以貼圖片網址。' },
+  { since: 1, tab: 'new', target: () => q1('#q-chips') && q1('#q-chips').closest('.group'), title: '報名時要問的問題',
+    text: '點「所屬大區」「所屬會所」「我可以預備？」等常用問題；或按「新增問題」自己寫，每題可選自由填寫或下拉選單。回答會跟名字一起出現在接龍名單。' },
+  { since: 1, tab: 'new', target: () => q1('#send'), title: '發送到 LINE 群組',
+    text: '填好後按這裡，從 LINE 的選單勾選群組或朋友，可以一次發給好幾個。' },
+  { since: 1, tab: 'new', target: () => q1('[data-tab=sent]'), title: '已發布的活動',
+    text: '發出去的活動都在這裡，你只會看到自己建立的。' },
+  { since: 1, tab: 'sent', target: () => q1('.stub-card') || q1('#panel .empty'), title: '活動詳情與統計',
+    text: '點進活動可以看報名名單、依大區或會所分組的統計、複製名單，也能編輯、停止報名或刪除活動。' },
+  { since: 1, admin: true, tab: 'new', target: () => q1('[data-tab=members]'), title: '成員名單',
+    text: '只有管理員看得到。所有報過名的人的姓名、手機都在這裡，可以搜尋、解除綁定或移除。' },
+  { since: 1, tab: 'new', target: () => q1('#help'), title: '隨時重看教學',
+    text: '報名的人也能自己修改回答、取消報名、轉傳活動給朋友。忘記怎麼用時，按這個「?」再看一次。' },
+];
+
+const tourSeen = () => { try { const v = localStorage.getItem(TOUR_KEY); return v == null ? 0 : parseInt(v, 10) || 0; } catch (e) { return TOUR_VERSION; } };
+const markTour = () => { try { localStorage.setItem(TOUR_KEY, String(TOUR_VERSION)); } catch (e) {} };
+
+function maybeStartTour() {
+  const seen = tourSeen();
+  if (!seen) return startTour(TOUR_STEPS);
+  if (seen >= TOUR_VERSION) return;
+  markTour();
+  const fresh = TOUR_STEPS.filter(s => s.since > seen && (!s.admin || ME.isAdmin));
+  if (fresh.length) notice(`新功能：${fresh.map(s => s.title).join('、')}`, '看介紹', () => startTour(fresh));
+}
+
+function notice(text, action, fn) {
+  const n = $('notice');
+  $('notice-text').textContent = text; $('notice-go').textContent = action; n.hidden = false;
+  const close = () => { n.hidden = true; };
+  $('notice-go').onclick = () => { close(); fn(); };
+  $('notice-x').onclick = close;
+  setTimeout(close, 15000);
+}
+
+let TOUR = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function startTour(steps) {
+  if (TOUR) return;
+  markTour();
+  steps = steps.filter(s => !s.admin || ME.isAdmin);
+  if (!steps.length) return;
+  const el = document.createElement('div');
+  el.className = 'tour';
+  el.innerHTML = `<div class="tour-catch"></div><div class="tour-hole" aria-hidden="true"></div>
+    <div class="tour-bubble" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+      <div class="tour-head"><h2 id="tour-title"></h2><span class="tour-count"></span></div>
+      <p id="tour-text"></p>
+      <div class="tour-btns"><button type="button" class="tour-skip">跳過</button><button type="button" class="tour-prev">上一步</button><button type="button" class="tour-next">下一步</button></div>
+    </div>`;
+  document.body.append(el);
+  TOUR = { el, steps, i: -1, from: TAB };
+  el.querySelector('.tour-catch').addEventListener('click', e => e.stopPropagation());
+  el.querySelector('.tour-skip').onclick = endTour;
+  el.querySelector('.tour-prev').onclick = () => tourGo(TOUR.i - 1, -1);
+  el.querySelector('.tour-next').onclick = () => tourGo(TOUR.i + 1, 1);
+  addEventListener('keydown', tourKey, true);
+  addEventListener('resize', placeTour);
+  addEventListener('scroll', placeTour, true);
+  requestAnimationFrame(() => el.classList.add('on'));
+  tourGo(0, 1);
+}
+
+function tourKey(e) { if (TOUR && e.key === 'Escape') { e.preventDefault(); endTour(); } }
+
+async function tourGo(i, dir) {
+  const t = TOUR;
+  if (!t || t.busy || i < 0) return;
+  if (i >= t.steps.length) return endTour();
+  const s = t.steps[i];
+  t.busy = true;
+  if (s.tab && (TAB !== s.tab || ROUTE.view !== 'tabs')) { TAB = s.tab; ROUTE = { view: 'tabs' }; render(); }
+  let el = null;
+  for (let n = 0; n < 40 && !el; n++) { el = s.target(); if (!el) await sleep(50); }
+  t.busy = false;
+  if (TOUR !== t) return;
+  if (!el) return tourGo(i + dir, dir); // 這一步要圈的東西不在畫面上（例如沒有權限）就跳過
+  t.i = i; t.target = el;
+  el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  t.el.querySelector('#tour-title').textContent = s.title;
+  t.el.querySelector('#tour-text').textContent = s.text;
+  t.el.querySelector('.tour-count').textContent = `${i + 1} / ${t.steps.length}`;
+  t.el.querySelector('.tour-prev').disabled = i === 0;
+  t.el.querySelector('.tour-next').textContent = i === t.steps.length - 1 ? '完成' : '下一步';
+  placeTour();
+  await sleep(reducedMotion() ? 0 : 380); // 等捲動停下來再對準
+  placeTour();
+  t.el.querySelector('.tour-next').focus({ preventScroll: true });
+}
+
+function placeTour() {
+  const t = TOUR;
+  if (!t || !t.target) return;
+  const PAD = 6, GAP = 14, EDGE = 12;
+  const r = t.target.getBoundingClientRect();
+  const x = Math.max(r.left - PAD, 4), y = Math.max(r.top - PAD, 4);
+  const w = Math.min(r.right + PAD, innerWidth - 4) - x, h = Math.min(r.bottom + PAD, innerHeight - 4) - y;
+  const hole = t.el.querySelector('.tour-hole');
+  hole.style.width = `${Math.max(0, w)}px`; hole.style.height = `${Math.max(0, h)}px`;
+  hole.style.transform = `translate(${x}px, ${y}px)`;
+  const b = t.el.querySelector('.tour-bubble');
+  const bw = b.offsetWidth, bh = b.offsetHeight;
+  let by;
+  if (innerHeight - (y + h) - GAP - EDGE >= bh) by = y + h + GAP;          // 放在框的下面
+  else if (y - GAP - EDGE >= bh) by = y - GAP - bh;                          // 放在框的上面
+  else by = innerHeight - EDGE - bh;                                         // 都放不下就貼底
+  const bx = Math.min(Math.max(x + w / 2 - bw / 2, EDGE), innerWidth - EDGE - bw);
+  b.style.transform = `translate(${bx}px, ${Math.max(EDGE, by)}px)`;
+}
+
+function endTour() {
+  const t = TOUR;
+  if (!t) return;
+  TOUR = null;
+  removeEventListener('keydown', tourKey, true);
+  removeEventListener('resize', placeTour);
+  removeEventListener('scroll', placeTour, true);
+  t.el.classList.remove('on');
+  setTimeout(() => t.el.remove(), 220);
+  TAB = t.from === 'members' && !ME.isAdmin ? 'new' : t.from; ROUTE = { view: 'tabs' }; render();
 }
 
 /* ================= 發送到群組 ================= */
