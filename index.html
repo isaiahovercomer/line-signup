@@ -605,10 +605,10 @@ function render() {
 
 /* ---------- 活動表單（新增與編輯共用） ---------- */
 const PRESET_QUESTIONS = [
-  { q: '我可以預備？', type: 'text' },
-  { q: '同行人數', type: 'text' },
   { q: '所屬大區？', type: 'select', optionsText: Array.from({ length: 41 }, (_, i) => `${i + 1}大區`).join('、') },
   { q: '所屬會所？', type: 'select', optionsText: Array.from({ length: 23 }, (_, i) => `${i + 1}會所`).join('、') },
+  { q: '我可以預備？', type: 'text' },
+  { q: '同行人數', type: 'text' },
   { q: '飲食需求', type: 'text' },
 ];
 const splitOptions = t => [...new Set(String(t || '').split(/[,，、;；\n]+/).map(s => s.trim()).filter(Boolean))].slice(0, 60);
