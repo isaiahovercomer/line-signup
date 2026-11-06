@@ -302,6 +302,7 @@ async function demoApi(action, d) {
     }
     case 'updateEvent': { const e = find(d.eventId); Object.assign(e, d.event, { date: fmtRange(d.event.start, d.event.end) || d.event.date, capacity: +d.event.capacity || 0 }); return { ok: true, event: demoEvent(e) }; }
     case 'setOpen': { const e = find(d.eventId); e.open = d.open; return { ok: true, event: demoEvent(e) }; }
+    case 'deleteEvent': { const n = (demo.log[d.eventId] || []).length; demo.events = demo.events.filter(e => e.id !== d.eventId); return { ok: true, removed: n }; }
     case 'listMembers': return { ok: true, members: demoMembers() };
     case 'addMember': {
       if (!d.name || String(d.phone).replace(/\D/g, '').length < 9) throw new Error('請填寫姓名和完整手機號碼');
@@ -377,7 +378,7 @@ function ticket(ev, stubHtml, extra = '') {
 async function forwardFlow(id) {
   view(loading());
   const { event } = await api('event', { eventId: id });
-  if (!event) throw new Error('找不到這個活動');
+  if (!event) throw new Error('找不到這個活動，可能已經被刪除');
   document.title = event.title;
   view(`<section class="solo">
     ${ticket(event, `<div class="result-msg"><p>把這個活動轉傳給其他群組或朋友。</p><p class="muted">可以一次勾選好幾個。</p></div>`)}
@@ -773,11 +774,28 @@ async function renderDetail(id) {
     <div class="roll-head"><h2>報名名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
     ${list.length ? `<ol class="roll">${list.map(a => `
         <li><span class="nm">${esc(a.name)}${answerText(ev, a) ? `<small class="ans">${esc(answerText(ev, a))}</small>` : ''}${a.lineName && a.lineName !== a.name ? `<small>LINE：${esc(a.lineName)}</small>` : ''}</span><time>${esc(a.time)}</time></li>`).join('')}</ol>`
-      : `<div class="empty">還沒有人報名。把圖卡發到群組，大家就能一鍵報名。</div>`}`);
+      : `<div class="empty">還沒有人報名。把圖卡發到群組，大家就能一鍵報名。</div>`}
+    <button class="btn cancel" style="margin-top:28px" id="del">刪除活動</button>`);
 
   $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
   $('edit').onclick = () => go({ view: 'edit', id: ev.id });
   $('share').onclick = () => share(ev);
+  $('del').onclick = async () => {
+    const b = $('del');
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed');
+      b.textContent = list.length ? `確定刪除？${list.length} 筆報名也會一起刪除` : '確定刪除這個活動？';
+      setTimeout(() => { if (b.isConnected && !b.disabled) { b.classList.remove('armed'); b.textContent = '刪除活動'; } }, 4000);
+      return;
+    }
+    b.disabled = true; b.textContent = '刪除中';
+    try {
+      await api('deleteEvent', { eventId: ev.id });
+      toast(`已刪除「${ev.title}」。群組裡舊的圖卡點開會顯示活動已刪除。`);
+      await refreshEvents();
+      TAB = 'sent'; go({ view: 'tabs' });
+    } catch (e) { toast(e.message); b.disabled = false; b.classList.remove('armed'); b.textContent = '刪除活動'; }
+  };
   $('toggle').onclick = async () => {
     $('toggle').disabled = true;
     try { await api('setOpen', { eventId: ev.id, open: !ev.open }); toast(ev.open ? '已停止報名' : '已重新開放報名'); renderDetail(ev.id); }

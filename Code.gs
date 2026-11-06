@@ -60,6 +60,7 @@ function doPost(e) {
         case 'updateEvent':  own(); out = { ok: true, event: updateEvent(req.eventId, req.event || {}) }; break;
         case 'eventDetail':  own(); out = { ok: true, ...eventDetail(req.eventId) }; break;
         case 'setOpen':      own(); out = { ok: true, event: setOpen(req.eventId, !!req.open) }; break;
+        case 'deleteEvent':  own(); out = { ok: true, removed: deleteEvent(req.eventId) }; break;
         case 'listMembers':  admin(); out = { ok: true, members: listMembers() }; break;
         case 'addMember':    admin(); out = { ok: true, members: addMember(req.name, req.phone) }; break;
         case 'unbindMember': admin(); out = { ok: true, members: unbindMember(req.row, req.name) }; break;
@@ -214,7 +215,7 @@ function getEvent(id) {
 function findEventRow(id) {
   const data = sheet(SH.EVENTS).getDataRange().getValues();
   for (let i = 1; i < data.length; i++) if (String(data[i][EV.ID]) === String(id)) return { index: i + 1, row: data[i] };
-  throw new Error('找不到這個活動');
+  throw new Error('找不到這個活動，可能已經被刪除');
 }
 
 function createEvent(user, input) {
@@ -259,7 +260,7 @@ function rollLine(r) { return [String(r[3])].concat(answersOf(r).filter(Boolean)
 
 function eventDetail(id) {
   const ev = getEvent(id);
-  if (!ev) throw new Error('找不到這個活動');
+  if (!ev) throw new Error('找不到這個活動，可能已經被刪除');
   const log = logOf(id);
   return {
     event: withStats(ev, log),
@@ -268,6 +269,21 @@ function eventDetail(id) {
       name: String(r[3]), lineName: String(r[4] || ''), answers: answersOf(r),
     })),
   };
+}
+
+/** 刪除活動與它的報名紀錄（無法復原）；回傳刪掉幾筆報名 */
+function deleteEvent(id) {
+  return withLock(() => {
+    const f = findEventRow(id);
+    const log = sheet(SH.LOG);
+    const data = log.getDataRange().getValues();
+    let removed = 0;
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][1]) === String(id)) { log.deleteRow(i + 1); removed++; }
+    }
+    sheet(SH.EVENTS).deleteRow(f.index);
+    return removed;
+  });
 }
 
 function setOpen(id, open) {
@@ -333,7 +349,7 @@ function removeMember(row, name) {
 function register(user, eventId, answers) {
   return withLock(() => {
     const ev = getEvent(eventId);
-    if (!ev) throw new Error('找不到這個活動');
+    if (!ev) throw new Error('找不到這個活動，可能已經被刪除');
     const log = logOf(ev.id);
     const lines = () => log.map(rollLine);
     const state = stateOf(ev, log.length);
@@ -368,7 +384,7 @@ function register(user, eventId, answers) {
 function cancel(user, eventId) {
   return withLock(() => {
     const ev = getEvent(eventId);
-    if (!ev) throw new Error('找不到這個活動');
+    if (!ev) throw new Error('找不到這個活動，可能已經被刪除');
     const sh = sheet(SH.LOG);
     const data = sh.getDataRange().getValues();
     for (let i = data.length - 1; i >= 1; i--) {
