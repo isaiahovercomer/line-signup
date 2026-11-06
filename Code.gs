@@ -127,6 +127,15 @@ function fmtRange(start, end) {
   return t;
 }
 
+/** 問題存成 { q, options }；options 有值就是下拉選單。舊資料只有文字也能讀 */
+function cleanQuestions(list) {
+  return (Array.isArray(list) ? list : []).map(x => {
+    const q = String(typeof x === 'string' ? x : (x && x.q) || '').trim().slice(0, 40);
+    const options = [...new Set((x && Array.isArray(x.options) ? x.options : []).map(o => String(o || '').trim().slice(0, 30)).filter(Boolean))].slice(0, 20);
+    return { q, options };
+  }).filter(x => x.q).slice(0, 5);
+}
+
 function rowToEvent(r) {
   return {
     id: String(r[EV.ID]), title: String(r[EV.TITLE]),
@@ -135,7 +144,7 @@ function rowToEvent(r) {
     button: String(r[EV.BUTTON] || '我要報名'), open: isTrue(r[EV.OPEN]),
     capacity: parseInt(r[EV.CAP], 10) || 0, deadline: normTime(r[EV.DEADLINE]),
     start: normTime(r[EV.START]), end: normTime(r[EV.END]),
-    questions: parseJson(r[EV.QUESTIONS], []) || [],
+    questions: cleanQuestions(parseJson(r[EV.QUESTIONS], [])),
   };
 }
 
@@ -162,8 +171,7 @@ function cleanEventInput(ev) {
   let end = normTime(ev.end);
   if (!start && end) throw new Error('有結束時間時，也要填開始時間');
   if (start && end && end <= start) throw new Error('結束時間要晚於開始時間');
-  const questions = (Array.isArray(ev.questions) ? ev.questions : [])
-    .map(q => String(q || '').trim().slice(0, 40)).filter(Boolean).slice(0, 5);
+  const questions = cleanQuestions(ev.questions);
   return {
     title, start, end,
     date: start ? fmtRange(start, end) : String(ev.date || '').trim(),
@@ -371,8 +379,11 @@ function register(user, eventId, answers) {
     if (state !== 'open') return { ok: true, status: state, name, event: withStats(ev, log) };
     if (ev.questions.length && !Array.isArray(answers)) return { ok: true, status: 'need_answers', name, event: withStats(ev, log) };
 
-    const ans = ev.questions.map((q, i) => String((answers || [])[i] || '').trim().slice(0, 100));
-    const readable = ev.questions.map((q, i) => ans[i] ? q.replace(/[？?]\s*$/, '') + '：' + ans[i] : '').filter(Boolean).join('｜');
+    const ans = ev.questions.map((q, i) => {
+      const a = String((answers || [])[i] || '').trim().slice(0, 100);
+      return q.options.length && !q.options.includes(a) ? '' : a; // 下拉選單只收選項裡的答案
+    });
+    const readable = ev.questions.map((q, i) => ans[i] ? q.q.replace(/[？?]\s*$/, '') + '：' + ans[i] : '').filter(Boolean).join('｜');
     const entry = [new Date(), ev.id, ev.title, name, user.displayName, user.userId, readable, JSON.stringify(ans)];
     sheet(SH.LOG).appendRow(entry);
     log.push(entry);

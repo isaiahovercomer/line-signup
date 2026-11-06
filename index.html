@@ -88,6 +88,27 @@
   .q-row input { flex: 1; min-width: 0; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 11px 14px; font-size: 16px; }
   .q-row input:focus { outline: none; border-color: var(--ink); }
   .q-del { width: 46px; flex: none; border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; font-size: 20px; color: var(--ink-2); cursor: pointer; }
+  .q-card { background: var(--paper); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+  .q-card .q-row { margin-bottom: 8px; }
+  .q-card .q-row input { background: var(--sky); border-color: transparent; }
+  .q-type { display: inline-flex; border: 1.5px solid var(--rule); border-radius: 10px; overflow: hidden; }
+  .q-type button { border: 0; background: transparent; padding: 6px 14px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+  .q-type button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 700; }
+  .q-opts { width: 100%; margin-top: 8px; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 11px 14px; font-size: 16px; }
+  .q-opts:focus { outline: none; border-color: var(--ink); }
+  .field select { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; min-height: 50px; color: var(--ink); appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+  .stat-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .stat-head .btn.small { margin: 0; flex: none; }
+  .group-block { border-top: 1px solid var(--sky); padding: 12px 0 6px; }
+  .group-block:first-of-type { margin-top: 8px; }
+  .group-block .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .group-block .lbl { font-weight: 700; font-size: 16px; }
+  .group-block .cnt { color: var(--ink-2); font-size: 13px; }
+  .group-block.none .lbl, .group-block.none .bar i { color: var(--ink-2); background: var(--rule); }
+  .names { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr)); gap: 6px; }
+  .names li { background: var(--sky); border-radius: 8px; padding: 5px 10px; font-size: 14px; word-break: break-word; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1.5px dashed var(--ink-2); background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--ink); cursor: pointer; }
   .chip.new { border-style: solid; border-color: var(--ink); font-weight: 700; }
@@ -258,11 +279,11 @@ function toast(msg) {
 const demo = {
   me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
   events: [
-    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要報名', open: true, capacity: 60, deadline: '2026-12-18 21:00', questions: ['我可以預備？', '同行人數'] },
+    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要報名', open: true, capacity: 60, deadline: '2026-12-18 21:00', questions: [{ q: '我可以預備？', options: [] }, { q: '同行人數', options: [] }, { q: '所屬大區？', options: ['北區', '中區', '南區'] }] },
     { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [] },
   ],
   log: {
-    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
+    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2', '北區']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1', '北區']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3', '中區']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
     E2: [['10/28 09:10', '林志豪', '志豪', []]],
   },
   members: [
@@ -486,8 +507,12 @@ function addRepostButton(ev, names, who) {
 }
 
 /** 活動設定的問題，報名時一起填 */
-const questionFields = ev => (ev.questions || []).map((q, i) =>
-  `<label class="field"><span>${esc(q)}</span><input data-ans="${i}" maxlength="100" placeholder="選填"></label>`).join('');
+/** 問題可能是舊格式的文字，或 { q, options }；有 options 就是下拉選單 */
+const qText = q => typeof q === 'string' ? q : (q && q.q) || '';
+const qOpts = q => (q && Array.isArray(q.options)) ? q.options : [];
+const questionFields = ev => (ev.questions || []).map((q, i) => qOpts(q).length
+  ? `<label class="field"><span>${esc(qText(q))}</span><select data-ans="${i}"><option value="">請選擇</option>${qOpts(q).map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`
+  : `<label class="field"><span>${esc(qText(q))}</span><input data-ans="${i}" maxlength="100" placeholder="選填"></label>`).join('');
 const collectAnswers = ev => (ev.questions || []).map((q, i) => (document.querySelector(`[data-ans="${i}"]`) || {}).value || '');
 
 function bindForm(eventId, ev, warn = '') {
@@ -577,7 +602,15 @@ function render() {
 }
 
 /* ---------- 活動表單（新增與編輯共用） ---------- */
-const PRESET_QUESTIONS = ['我可以預備？', '同行人數', '飲食需求', '備註'];
+const PRESET_QUESTIONS = [
+  { q: '我可以預備？', type: 'text' },
+  { q: '同行人數', type: 'text' },
+  { q: '所屬大區？', type: 'select', optionsText: '' },
+  { q: '飲食需求', type: 'text' },
+];
+const splitOptions = t => [...new Set(String(t || '').split(/[,，、;；\n]+/).map(s => s.trim()).filter(Boolean))].slice(0, 20);
+/** 編輯用的問題格式：{ q, type: 'text' | 'select', optionsText } */
+const toDraftQuestion = q => ({ q: qText(q), type: qOpts(q).length ? 'select' : 'text', optionsText: qOpts(q).join('、') });
 const MAX_QUESTIONS = 5;
 
 function eventForm(d) {
@@ -631,21 +664,42 @@ function bindEventForm(d) {
   preview(d);
 }
 
-/** 問題清單：已加的問題可改字或刪除，下面是常用問題與「新增問題」 */
+const optionsPreview = t => { const o = splitOptions(t); return o.length ? `報名的人會看到 ${o.length} 個選項：${o.map(esc).join('／')}` : '至少要填一個選項'; };
+
+/** 問題清單：已加的問題可改字、切換回答方式或刪除，下面是常用問題與「新增問題」 */
 function drawQuestions(d) {
   const list = $('q-list'), chips = $('q-chips');
   list.innerHTML = d.questions.map((q, i) => `
-    <div class="q-row"><input data-q="${i}" value="${esc(q)}" maxlength="40" placeholder="輸入問題">
-      <button type="button" class="q-del" data-qdel="${i}" aria-label="刪除這個問題">×</button></div>`).join('');
+    <div class="q-card">
+      <div class="q-row"><input data-q="${i}" value="${esc(q.q)}" maxlength="40" placeholder="輸入問題">
+        <button type="button" class="q-del" data-qdel="${i}" aria-label="刪除這個問題">×</button></div>
+      <div class="q-type" role="group" aria-label="回答方式">
+        <button type="button" data-qtype="${i}" data-t="text" aria-pressed="${q.type !== 'select'}">自由填寫</button>
+        <button type="button" data-qtype="${i}" data-t="select" aria-pressed="${q.type === 'select'}">下拉選單</button>
+      </div>
+      ${q.type === 'select' ? `<input class="q-opts" data-qopts="${i}" value="${esc(q.optionsText || '')}" placeholder="選項，用頓號分開，例如：北區、中區、南區">
+        <div class="help" data-qprev="${i}">${optionsPreview(q.optionsText)}</div>` : ''}
+    </div>`).join('');
   const room = d.questions.length < MAX_QUESTIONS;
-  const unused = PRESET_QUESTIONS.filter(p => !d.questions.includes(p));
-  chips.innerHTML = room ? unused.map(p => `<button type="button" class="chip" data-qadd="${esc(p)}">＋ ${esc(p)}</button>`).join('')
-    + `<button type="button" class="chip new" data-qadd="">＋ 新增問題</button>` : `<span class="help">最多 ${MAX_QUESTIONS} 個問題</span>`;
-  list.querySelectorAll('[data-q]').forEach(el => el.oninput = () => { d.questions[+el.dataset.q] = el.value; });
+  const unused = PRESET_QUESTIONS.filter(p => !d.questions.some(x => x.q === p.q));
+  chips.innerHTML = room ? unused.map((p, n) => `<button type="button" class="chip" data-qpreset="${PRESET_QUESTIONS.indexOf(p)}">＋ ${esc(p.q)}${p.type === 'select' ? '（下拉）' : ''}</button>`).join('')
+    + `<button type="button" class="chip new" data-qnew>＋ 新增問題</button>` : `<span class="help">最多 ${MAX_QUESTIONS} 個問題</span>`;
+  list.querySelectorAll('[data-q]').forEach(el => el.oninput = () => { d.questions[+el.dataset.q].q = el.value; });
+  list.querySelectorAll('[data-qopts]').forEach(el => el.oninput = () => {
+    d.questions[+el.dataset.qopts].optionsText = el.value;
+    list.querySelector(`[data-qprev="${el.dataset.qopts}"]`).innerHTML = optionsPreview(el.value);
+  });
+  list.querySelectorAll('[data-qtype]').forEach(b => b.onclick = () => { d.questions[+b.dataset.qtype].type = b.dataset.t; drawQuestions(d);
+    if (b.dataset.t === 'select') list.querySelector(`[data-qopts="${b.dataset.qtype}"]`).focus(); });
   list.querySelectorAll('[data-qdel]').forEach(b => b.onclick = () => { d.questions.splice(+b.dataset.qdel, 1); drawQuestions(d); });
-  chips.querySelectorAll('[data-qadd]').forEach(b => b.onclick = () => {
-    d.questions.push(b.dataset.qadd); drawQuestions(d);
-    if (!b.dataset.qadd) list.querySelector(`[data-q="${d.questions.length - 1}"]`).focus();
+  chips.querySelectorAll('[data-qpreset]').forEach(b => b.onclick = () => {
+    const p = PRESET_QUESTIONS[+b.dataset.qpreset];
+    d.questions.push({ q: p.q, type: p.type, optionsText: p.optionsText || '' }); drawQuestions(d);
+    if (p.type === 'select') list.querySelector(`[data-qopts="${d.questions.length - 1}"]`).focus();
+  });
+  chips.querySelectorAll('[data-qnew]').forEach(b => b.onclick = () => {
+    d.questions.push({ q: '', type: 'text', optionsText: '' }); drawQuestions(d);
+    list.querySelector(`[data-q="${d.questions.length - 1}"]`).focus();
   });
 }
 
@@ -708,8 +762,10 @@ const toPayload = d => ({
   ...d,
   button: d.button.trim() || '我要報名',
   start: (d.start || '').replace('T', ' '), end: (d.end || '').replace('T', ' '), deadline: (d.deadline || '').replace('T', ' '),
-  questions: d.questions.map(q => q.trim()).filter(Boolean),
+  questions: d.questions.filter(q => q.q.trim()).map(q => ({ q: q.q.trim(), options: q.type === 'select' ? splitOptions(q.optionsText) : [] })),
 });
+/** 下拉選單的題目一定要有選項 */
+const questionProblem = d => { const bad = d.questions.find(q => q.q.trim() && q.type === 'select' && !splitOptions(q.optionsText).length); return bad ? `「${bad.q.trim()}」是下拉選單，請填寫選項` : ''; };
 
 function renderCompose() {
   $('panel').innerHTML = eventForm(draft);
@@ -719,6 +775,7 @@ function renderCompose() {
 
 async function createAndSend() {
   if (!draft.title.trim()) { toast('請先填活動名稱'); document.querySelector('[data-k=title]').focus(); return; }
+  if (questionProblem(draft)) { toast(questionProblem(draft)); return; }
   const btn = $('send');
   btn.disabled = true; btn.textContent = '建立中';
   try {
@@ -780,6 +837,7 @@ async function renderDetail(id) {
   $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
   $('edit').onclick = () => go({ view: 'edit', id: ev.id });
   $('share').onclick = () => share(ev);
+  document.querySelectorAll('[data-statcopy]').forEach(b => b.onclick = () => copyText(STAT_COPY[+b.dataset.statcopy], '已複製分組名單'));
   $('del').onclick = async () => {
     const b = $('del');
     if (!b.classList.contains('armed')) {
@@ -806,6 +864,7 @@ async function renderDetail(id) {
     '已複製名單');
 }
 
+let STAT_COPY = [];
 /** 依每個問題整理回答：全是數字就加總，其他相同答案歸在一起 */
 function statsHtml(ev, list) {
   const qs = ev.questions || [];
@@ -822,30 +881,53 @@ function statsHtml(ev, list) {
       ${dayList.map(([d, n]) => `<div class="col"><div class="track"><span class="n">${n}</span><i style="height:${Math.max(6, n / peak * 100)}%"></i></div><span class="d">${esc(d)}</span></div>`).join('')}
     </div></div>`;
 
-  const cards = qs.map((q, i) => {
-    const filled = list.map(a => ({ name: a.name, v: String((a.answers || [])[i] || '').trim() })).filter(x => x.v);
-    const head = `<h3>${esc(q)}</h3><p class="meta">已回答 ${filled.length}／${list.length} 人</p>`;
-    if (!filled.length) return `<div class="stat">${head}<p class="meta">還沒有人回答。</p></div>`;
-    if (filled.every(x => num(x.v) !== null)) {
+  // 「北區」「北區 」「ＮＯＲＴＨ」視為同一個答案
+  const keyOf = v => v.replace(/\s+/g, '').replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).toLowerCase();
+  const isCountQuestion = q => /人數|幾位|幾人|幾個|多少|數量|份數/.test(q);
+  STAT_COPY = [];
+
+  const cards = qs.map((qObj, i) => {
+    const q = qText(qObj), opts = qOpts(qObj);
+    const all = list.map(a => ({ name: a.name, v: String((a.answers || [])[i] || '').trim() }));
+    const filled = all.filter(x => x.v), blank = all.filter(x => !x.v);
+    const head = (copy) => `<div class="stat-head"><div><h3>${esc(q)}</h3><p class="meta">已回答 ${filled.length}／${list.length} 人</p></div>${copy}</div>`;
+    if (!filled.length) return `<div class="stat">${head('')}<p class="meta">還沒有人回答。</p></div>`;
+
+    // 問人數的題目，而且回答都是數字：顯示合計
+    if (isCountQuestion(q) && filled.every(x => num(x.v) !== null)) {
       const sum = filled.reduce((s, x) => s + num(x.v), 0);
-      return `<div class="stat">${head}<p class="sum"><b>${+sum.toFixed(2)}</b><span>合計</span></p></div>`;
+      return `<div class="stat">${head('')}<p class="sum"><b>${+sum.toFixed(2)}</b><span>合計</span></p></div>`;
     }
+
+    // 其他題目：依答案分組，每組下面列出名字
     const groups = new Map();
-    filled.forEach(x => { const k = x.v.toLowerCase(); if (!groups.has(k)) groups.set(k, { label: x.v, names: [] }); groups.get(k).names.push(x.name); });
-    const sorted = [...groups.values()].sort((a, b) => b.names.length - a.names.length);
-    const top = sorted[0].names.length;
-    const rows = sorted.map(g => `
-      <li><div class="top"><span class="lbl">${esc(g.label)}</span><span class="cnt ${g.names.length > 1 ? 'dup' : ''}">${g.names.length} 人</span></div>
+    filled.forEach(x => { const k = keyOf(x.v); if (!groups.has(k)) groups.set(k, { label: x.v, names: [] }); groups.get(k).names.push(x.name); });
+    let sorted;
+    if (opts.length) {
+      // 下拉選單：照選項順序，沒人選的也列出來
+      sorted = opts.map(o => groups.get(keyOf(o)) || { label: o, names: [] });
+      groups.forEach((g, k) => { if (!opts.some(o => keyOf(o) === k)) sorted.push(g); });
+    } else {
+      sorted = [...groups.values()].sort((a, b) => b.names.length - a.names.length || a.label.localeCompare(b.label, 'zh-Hant'));
+    }
+    if (blank.length) sorted.push({ label: '未回答', names: blank.map(x => x.name), none: true });
+    const top = Math.max(1, ...sorted.map(g => g.names.length));
+
+    STAT_COPY[i] = `${ev.title}｜${q}\n` + sorted.filter(g => g.names.length).map(g => `【${g.label}】${g.names.length} 人\n${g.names.join('、')}`).join('\n');
+    const blocks = sorted.map(g => `
+      <section class="group-block ${g.none ? 'none' : ''}">
+        <div class="top"><span class="lbl">${esc(g.label)}</span><span class="cnt">${g.names.length} 人</span></div>
         <div class="bar"><i style="width:${g.names.length / top * 100}%"></i></div>
-        <div class="who">${g.names.map(esc).join('、')}</div></li>`).join('');
-    return `<div class="stat">${head}<ul>${rows}</ul></div>`;
+        ${g.names.length ? `<ol class="names">${g.names.map(n => `<li>${esc(n)}</li>`).join('')}</ol>` : ''}
+      </section>`).join('');
+    return `<div class="stat">${head(`<button class="btn plain small" data-statcopy="${i}">複製</button>`)}${blocks}</div>`;
   }).join('');
   return `<div class="roll-head"><h2>統計</h2></div><div class="stats">${trend}${cards}</div>`;
 }
 
 /** 名單上回答的顯示：「我可以預備：三杯雞｜同行人數：3」 */
 function answerText(ev, a) {
-  return (ev.questions || []).map((q, i) => (a.answers || [])[i] ? `${q.replace(/[？?]\s*$/, '')}：${a.answers[i]}` : '').filter(Boolean).join('｜');
+  return (ev.questions || []).map((q, i) => (a.answers || [])[i] ? `${qText(q).replace(/[？?]\s*$/, '')}：${a.answers[i]}` : '').filter(Boolean).join('｜');
 }
 
 /* ---------- 編輯活動 ---------- */
@@ -856,7 +938,7 @@ function renderEdit(id) {
     title: ev.title, date: ev.date, place: ev.place, desc: ev.desc, image: ev.image, button: ev.button,
     start: (ev.start || '').replace(' ', 'T'), end: (ev.end || '').replace(' ', 'T'),
     capacity: ev.capacity ? String(ev.capacity) : '', deadline: (ev.deadline || '').replace(' ', 'T'),
-    questions: [...(ev.questions || [])],
+    questions: (ev.questions || []).map(toDraftQuestion),
   };
   view(`
     <div class="subbar"><button class="back" id="back">‹ 取消</button><h1>編輯活動</h1><span></span></div>
@@ -866,6 +948,7 @@ function renderEdit(id) {
   $('back').onclick = () => go({ view: 'detail', id });
   $('save').onclick = async () => {
     if (!editDraft.title.trim()) { toast('請先填活動名稱'); return; }
+    if (questionProblem(editDraft)) { toast(questionProblem(editDraft)); return; }
     const b = $('save'); b.disabled = true; b.textContent = '儲存中';
     try {
       await api('updateEvent', { eventId: id, event: toPayload(editDraft) });
