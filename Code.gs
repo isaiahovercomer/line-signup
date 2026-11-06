@@ -52,6 +52,7 @@ function doPost(e) {
       switch (req.action) {
         case 'register':     out = register(user, req.eventId, req.answers); break;
         case 'bind':         out = bind(user, req.eventId, req.name, req.phone, req.answers); break;
+        case 'cancel':       out = cancel(user, req.eventId); break;
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
@@ -360,6 +361,24 @@ function register(user, eventId, answers) {
     sheet(SH.LOG).appendRow(entry);
     log.push(entry);
     return { ok: true, status: 'registered', name, event: withStats(ev, log), names: lines() };
+  });
+}
+
+/** 取消自己的報名：刪掉報名紀錄，名額釋出 */
+function cancel(user, eventId) {
+  return withLock(() => {
+    const ev = getEvent(eventId);
+    if (!ev) throw new Error('找不到這個活動');
+    const sh = sheet(SH.LOG);
+    const data = sh.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][1]) === ev.id && String(data[i][5]) === user.userId) {
+        sh.deleteRow(i + 1);
+        const log = logOf(ev.id);
+        return { ok: true, status: 'cancelled', name: String(data[i][3]), event: withStats(ev, log), names: log.map(rollLine) };
+      }
+    }
+    return { ok: true, status: 'not_registered', event: withStats(ev) };
   });
 }
 

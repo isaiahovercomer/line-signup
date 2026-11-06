@@ -100,6 +100,8 @@
   .btn.send:active { background: var(--line-dark); }
   .btn.ink { background: var(--ink); color: #fff; }
   .btn.plain { background: var(--paper); color: var(--ink); border: 1.5px solid var(--rule); }
+  .btn.cancel { background: transparent; color: var(--stamp); border: 1.5px solid #EBC3C6; }
+  .btn.cancel.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
   .btn.small { display: inline-block; width: auto; padding: 8px 14px; font-size: 14px; border-radius: 10px; }
   .btn:disabled { opacity: .55; cursor: default; }
   .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
@@ -193,7 +195,7 @@
   .stamp.land { animation: land .42s cubic-bezier(.2,1.4,.4,1) both; }
   @keyframes land { from { transform: rotate(-14deg) scale(2.2); opacity: 0; } to { transform: rotate(-14deg) scale(1); opacity: .9; } }
   .solo .ticket .title { padding-right: 100px; }
-  .stamp + .main dl { margin-right: 76px; } /* 沒有圖片時，印章會落在內文上 */
+  .stamp + .main dl { margin-right: 96px; } /* 沒有圖片時，印章會落在內文上 */
   .warn { background: #FBECEC; color: #8E1F27; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 0 0 12px; }
   .posted { margin-top: 10px; font-size: 13px; color: var(--line-dark); }
 
@@ -315,6 +317,7 @@ async function demoApi(action, d) {
       if (s === 'full') return { ok: true, status: 'full', event: { ...ev, state: 'full' } };
       return { ok: true, status: 'registered', name: '簡晨光', event: ev, names };
     }
+    case 'cancel': return { ok: true, status: 'cancelled', name: '簡晨光', event: { ...ev, count: ev.count - 1 }, names: names.slice(0, -1) };
     case 'bind': return { ok: true, status: 'registered', name: d.name || '簡晨光', event: ev, names: names.concat(d.name || []) };
   }
 }
@@ -410,10 +413,16 @@ function showResult(r, eventId) {
     case 'already':
       done('已報名', '', `${esc(r.name)}，你之前就報名了。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
       addRepostButton(ev, r.names, r.name);
+      addCancelButton(eventId, r.name);
       break;
     case 'full':        done('額滿', 'ink', '名額已經滿了。', '想候補請直接聯絡主辦人。'); break;
     case 'ended':       done('截止', 'ink', '報名時間已經過了。', '有問題請直接聯絡主辦人。'); break;
     case 'closed':      done('截止', 'ink', '這個活動已經停止報名。', '有問題請直接聯絡主辦人。'); break;
+    case 'cancelled':
+      done('已取消', 'ink', `${esc(r.name)}，已取消你的報名。`, `目前 ${ev.count} 人報名${cap}。想參加可以再按一次圖卡報名。`);
+      if (r.names) postRoll(ev, r.names, r.name, '取消了報名');
+      break;
+    case 'not_registered': done('未報名', 'ink', '你目前沒有報名這個活動。', '想參加請再按一次圖卡報名。'); break;
     case 'need_bind':   bindForm(eventId, ev); break;
     case 'need_answers': answerForm(eventId, ev, r.name); break;
     case 'not_found':   bindForm(eventId, ev, '名單裡找不到這組姓名和手機。請確認輸入正確，或聯絡主辦人把你加進名單。'); break;
@@ -423,7 +432,7 @@ function showResult(r, eventId) {
 }
 
 /** 以報名者名義在原本的聊天室貼出最新的接龍名單 */
-async function postRoll(ev, names, who) {
+async function postRoll(ev, names, who, verb = '報名了') {
   const note = $('posted');
   const say = t => { note.hidden = false; note.textContent = t; };
   if (DEMO) return say('預覽模式：正式版會在群組貼出最新名單');
@@ -438,13 +447,31 @@ async function postRoll(ev, names, who) {
       const p = await liff.permission.query('chat_message.write').catch(() => null);
       if (p && p.state === 'prompt') await liff.permission.requestAll().catch(() => {});
     }
-    await liff.sendMessages([buildRollFlex(ev, names, who)]);
+    await liff.sendMessages([buildRollFlex(ev, names, who, verb)]);
     say('已在聊天室更新報名名單');
     return true;
   } catch (e) {
     say(`名單沒有貼到聊天室（${e.code ? e.code + '：' : ''}${e.message}）。報名本身已完成。`);
     return false;
   }
+}
+
+/** 取消報名：按兩下確認 */
+function addCancelButton(eventId, name) {
+  const box = document.querySelector('.solo');
+  if (!box) return;
+  const b = document.createElement('button');
+  b.className = 'btn cancel'; b.style.marginTop = '10px'; b.textContent = '取消報名';
+  b.onclick = () => {
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed'); b.textContent = '確定取消報名？再按一次';
+      setTimeout(() => { if (b.isConnected && !b.disabled) { b.classList.remove('armed'); b.textContent = '取消報名'; } }, 4000);
+      return;
+    }
+    b.disabled = true; b.textContent = '取消中';
+    api('cancel', { eventId }).then(r => showResult(r, eventId)).catch(e => { toast(e.message); b.disabled = false; b.classList.remove('armed'); b.textContent = '取消報名'; });
+  };
+  box.appendChild(b);
 }
 
 /** 已報名的人可以手動在群組貼出目前名單 */
@@ -957,14 +984,14 @@ function buildFlex(ev) {
 }
 
 /** 接龍卡：列出目前所有報名的人，下面附報名按鈕 */
-function buildRollFlex(ev, names, who) {
+function buildRollFlex(ev, names, who, verb = '報名了') {
   const n = names.length;
   let list = names.map((x, i) => `${i + 1}. ${x}`).join('\n');
   if (list.length > 1800) list = list.slice(0, 1800) + '\n…';
   const count = `目前 ${n} 人${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
   return {
     type: 'flex',
-    altText: `${who} 報名了「${ev.title}」，${count}`.slice(0, 400),
+    altText: `${who} ${verb}「${ev.title}」，${count}`.slice(0, 400),
     contents: {
       type: 'bubble', size: 'kilo',
       body: { type: 'box', layout: 'vertical', paddingAll: '18px', contents: [
