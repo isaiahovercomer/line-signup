@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 活動登記圖示：海軍藍底、米白票券、金色票根、打勾＝登記完成 -->
+  <rect width="512" height="512" fill="#2F3343"/>
+  <g>
+    <!-- 票券本體 -->
+    <path d="M124 150h264a28 28 0 0 1 28 28v56a22 22 0 0 0 0 44v56a28 28 0 0 1-28 28H124a28 28 0 0 1-28-28v-56a22 22 0 0 0 0-44v-56a28 28 0 0 1 28-28z" fill="#FAF6EE"/>
+    <!-- 金色票根 -->
+    <path d="M326 150h62a28 28 0 0 1 28 28v56a22 22 0 0 0 0 44v56a28 28 0 0 1-28 28h-62z" fill="#C49356"/>
+    <!-- 撕線 -->
+    <line x1="326" y1="170" x2="326" y2="342" stroke="#FAF6EE" stroke-width="6" stroke-dasharray="12 10" stroke-linecap="round"/>
+    <!-- 打勾 -->
+    <path d="M152 258l40 40 82-90" fill="none" stroke="#2F3343" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

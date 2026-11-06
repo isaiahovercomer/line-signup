@@ -4,9 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2F3343">
-<link rel="icon" href="img/in-christ.svg" type="image/svg+xml">
-<link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
-<link rel="apple-touch-icon" href="img/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" sizes="180x180">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="活動登記">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>LINE簡易活動登記建立平台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -244,6 +249,14 @@
   .stamp.land { animation: land .42s cubic-bezier(.2,1.4,.4,1) both; }
   @keyframes land { from { transform: rotate(-14deg) scale(2.2); opacity: 0; } to { transform: rotate(-14deg) scale(1); opacity: .9; } }
   .solo .ticket .title { padding-right: 100px; }
+  .install { text-align: center; padding-top: 56px; }
+  .install .app-icon { border-radius: 22px; box-shadow: var(--shadow); }
+  .install h1 { font-family: var(--serif); font-weight: 900; font-size: 26px; margin: 14px 0 4px; }
+  .install .btn { margin-top: 18px; }
+  .install-steps { text-align: left; background: var(--paper); border-radius: 14px; padding: 14px 18px 14px 38px; margin: 18px 0 0; line-height: 1.9; box-shadow: var(--shadow); }
+  .install .small { font-size: 13px; margin-top: 14px; }
+  .page-foot { display: flex; justify-content: center; gap: 18px; }
+  .page-foot .mydata-link { display: inline-block; }
   .mydata-link { display: block; text-align: center; margin: 22px auto 0; font-size: 13px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
   .page-foot { padding: 10px 0 0; }
   dl.mydata { display: grid; grid-template-columns: 3.5em 1fr; gap: 6px 10px; margin: 0; }
@@ -433,6 +446,7 @@ async function api(action, data = {}) {
 /* ================= 入口 ================= */
 async function main() {
   try {
+    if (PARAMS.has('install')) return installFlow(); // 安裝說明頁不需要登入
     if (!DEMO) {
       await liff.init({ liffId: LIFF_ID });
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
@@ -500,6 +514,49 @@ async function forwardFlow(id) {
 }
 
 /* ================= 成員：一鍵登記 ================= */
+/* ================= 安裝到手機桌面（PWA） ================= */
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const installUrl = () => `${location.origin}${location.pathname}?install=1`;
+
+/** 從平台點「安裝到手機桌面」：LINE 裡面無法安裝，先改用手機瀏覽器打開 */
+function startInstall() {
+  if (!DEMO && liff.isInClient && liff.isInClient()) { liff.openWindow({ url: installUrl(), external: true }); return; }
+  installFlow();
+}
+
+function installFlow() {
+  document.title = '安裝「活動登記」';
+  const steps = isIOS()
+    ? `<ol class="install-steps"><li>用 <b>Safari</b> 開啟這個頁面</li><li>點下方的「分享」按鈕 <span aria-hidden="true">⬆︎</span></li><li>往下滑，點「<b>加入主畫面</b>」</li><li>按右上角「新增」</li></ol>`
+    : `<ol class="install-steps"><li>點上面的「安裝到手機桌面」</li><li>如果沒有反應：點瀏覽器右上角「⋮」選單</li><li>選「<b>安裝應用程式</b>」或「<b>加到主畫面</b>」</li></ol>`;
+  view(`<section class="solo install">
+    <img class="app-icon" src="icons/icon-192.png" alt="" width="96" height="96">
+    <h1>活動登記</h1>
+    <p class="muted">把「建立活動登記圖卡」平台放到手機桌面，像 App 一樣一點就開。</p>
+    ${isStandalone() ? '<p class="posted">已經安裝好了，從桌面的圖示打開即可。</p>' : `
+      <button class="btn send" id="do-install" ${isIOS() ? 'hidden' : ''}>安裝到手機桌面</button>
+      ${steps}`}
+    <p class="muted small">第一次從桌面打開時，會請你用 LINE 帳號登入一次。</p>
+    <button class="btn plain" id="go-platform" style="margin-top:14px">前往平台</button>
+  </section>`);
+  const btn = $('do-install');
+  if (btn) btn.onclick = async () => {
+    if (!installPrompt) { toast('請依照下面的步驟，從瀏覽器選單安裝'); return; }
+    installPrompt.prompt();
+    const r = await installPrompt.userChoice.catch(() => null);
+    installPrompt = null;
+    toast(r && r.outcome === 'accepted' ? '安裝完成，可以從桌面打開了' : '已取消安裝');
+  };
+  $('go-platform').onclick = () => { location.href = `${location.origin}${location.pathname}?pwa=1`; };
+}
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
 /* ================= 我的個人資料：查看與刪除 ================= */
 const myDataLink = () => `<a class="mydata-link" href="#" onclick="myDataFlow(); return false;">我的個人資料</a>`;
 const maskPhone = p => { const d = String(p || ''); return d.length >= 7 ? d.slice(0, 4) + '***' + d.slice(-3) : d; };
@@ -749,10 +806,11 @@ function render() {
       ${ME.isAdmin ? `<button role="tab" aria-selected="${TAB === 'members'}" data-tab="members">成員${MEMBERS ? `<span class="n">${MEMBERS.length}</span>` : ''}</button>` : ''}
     </nav>
     <div id="panel"></div>
-    <footer class="page-foot">${myDataLink()}</footer>
+    <footer class="page-foot">${isStandalone() ? '' : '<a class="mydata-link" href="#" id="install-link">安裝到手機桌面</a>'}${myDataLink()}</footer>
     ${dock}`);
   document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; render(); });
   $('help').onclick = () => startTour(TOUR_STEPS);
+  if ($('install-link')) $('install-link').onclick = e => { e.preventDefault(); startInstall(); };
   if (TAB === 'new') renderCompose();
   else if (TAB === 'sent') renderSent();
   else renderMembers();
@@ -1224,7 +1282,7 @@ function armThen(btn, label, fn) {
    之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。
    看過舊版的人不會重看整套，而是跳出「新功能：○○　看介紹」，只介紹新加的步驟。 */
 const TOUR_KEY = 'signup.tour';
-const TOUR_VERSION = 3; // 2：加入圖卡色調　3：我的個人資料
+const TOUR_VERSION = 4; // 2：加入圖卡色調　3：我的個人資料　4：安裝到手機桌面
 const q1 = sel => document.querySelector(sel);
 const groupOf = sel => { const el = q1(sel); return el && (el.closest('.group') || el.closest('.field')); };
 const TOUR_STEPS = [
@@ -1248,7 +1306,9 @@ const TOUR_STEPS = [
     text: '點進活動可以看登記名單、依大區或會所分組的統計、複製名單，也能編輯、停止登記或刪除活動。' },
   { since: 1, admin: true, tab: 'new', target: () => q1('[data-tab=members]'), title: '成員名單',
     text: '只有管理員看得到。所有報過名的人的姓名、手機都在這裡，可以搜尋、解除綁定或移除。' },
-  { since: 3, tab: 'new', target: () => q1('.page-foot .mydata-link'), title: '我的個人資料',
+  { since: 4, tab: 'new', target: () => q1('#install-link'), title: '安裝到手機桌面',
+    text: '點這裡可以把平台裝到手機桌面，以後像 App 一樣一點就開，不用再找連結。' },
+  { since: 3, tab: 'new', target: () => q1('.page-foot .mydata-link:last-child'), title: '我的個人資料',
     text: '每個人都能在這裡查看系統存了自己哪些資料，也可以自己刪除。登記結果頁的最下方也有這個連結。' },
   { since: 1, tab: 'new', target: () => q1('#help'), title: '隨時重看教學',
     text: '登記的人也能自己修改回答、取消登記、轉傳活動給朋友。忘記怎麼用時，按這個「?」再看一次。' },
