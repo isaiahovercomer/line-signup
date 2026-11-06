@@ -1,25 +1,26 @@
 /**
- * LINE 群組一鍵報名系統 — Google Apps Script 後端
+ * LINE 介面活動登記建立平台 — Google Apps Script 後端
  * 貼到 Google 試算表的「擴充功能 → Apps Script」。更新程式後執行一次 setup() 補齊欄位，再部署新版本。
  */
 
 const CONFIG = {
   CHANNEL_ID: '2012412693', // LINE Developers → 你的 LINE Login channel → Basic settings
+  IMAGE_FOLDER: 'LINE 活動圖片', // 上傳的活動圖片會存在你雲端硬碟的這個資料夾
 };
 
 const SH = { ROSTER: '名單', EVENTS: '活動', LOG: '報名紀錄', PUBLISHERS: '發布者' };
 
 const HEADERS = {
   '名單': ['姓名', '手機', 'LINE userId', 'LINE名稱'],
-  '活動': ['活動代碼', '活動名稱', '日期時間', '地點', '說明', '圖片網址', '按鈕文字', '開放報名', '建立者', '建立時間', '人數上限', '截止時間'],
-  '報名紀錄': ['時間', '活動代碼', '活動名稱', '姓名', 'LINE名稱', 'LINE userId'],
+  '活動': ['活動代碼', '活動名稱', '日期時間', '地點', '說明', '圖片網址', '按鈕文字', '開放報名', '建立者', '建立時間', '人數上限', '截止時間', '開始時間', '結束時間', '問題'],
+  '報名紀錄': ['時間', '活動代碼', '活動名稱', '姓名', 'LINE名稱', 'LINE userId', '回答', '回答資料'],
   '發布者': ['LINE userId', '名稱', '備註'],
 };
 
 // 「活動」工作表的欄位位置（從 0 開始）
-const EV = { ID: 0, TITLE: 1, DATE: 2, PLACE: 3, DESC: 4, IMAGE: 5, BUTTON: 6, OPEN: 7, CREATOR: 8, CREATED: 9, CAP: 10, DEADLINE: 11 };
+const EV = { ID: 0, TITLE: 1, DATE: 2, PLACE: 3, DESC: 4, IMAGE: 5, BUTTON: 6, OPEN: 7, CREATOR: 8, CREATED: 9, CAP: 10, DEADLINE: 11, START: 12, END: 13, QUESTIONS: 14 };
 
-/** 建立工作表並補齊標題列；更新程式後再執行一次也安全 */
+/** 建立工作表並補齊標題列；更新程式後再執行一次也安全（第一次會要求雲端硬碟權限，用來存上傳的圖片） */
 function setup() {
   const ss = SpreadsheetApp.getActive();
   Object.keys(HEADERS).forEach(name => {
@@ -29,8 +30,8 @@ function setup() {
     sh.setFrozenRows(1);
   });
   ss.getSheetByName(SH.ROSTER).getRange('B:B').setNumberFormat('@');   // 手機保留開頭的 0
-  ss.getSheetByName(SH.EVENTS).getRange('C:C').setNumberFormat('@');   // 日期時間存成文字
-  ss.getSheetByName(SH.EVENTS).getRange('L:L').setNumberFormat('@');   // 截止時間存成文字
+  ['C:C', 'L:L', 'M:M', 'N:N'].forEach(c => ss.getSheetByName(SH.EVENTS).getRange(c).setNumberFormat('@')); // 時間存成文字
+  imageFolder();
 }
 
 function doGet() {
@@ -49,9 +50,10 @@ function doPost(e) {
       const admin = () => requirePublisher(user);              // 只有「發布者」工作表裡的管理員
       const own = () => requireOwner(user, req.eventId);       // 活動建立者或管理員
       switch (req.action) {
-        case 'register':     out = register(user, req.eventId); break;
-        case 'bind':         out = bind(user, req.eventId, req.name, req.phone); break;
+        case 'register':     out = register(user, req.eventId, req.answers); break;
+        case 'bind':         out = bind(user, req.eventId, req.name, req.phone, req.answers); break;
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
+        case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
         case 'listEvents':   out = { ok: true, events: listEvents(user) }; break;
         case 'updateEvent':  own(); out = { ok: true, event: updateEvent(req.eventId, req.event || {}) }; break;
@@ -97,20 +99,30 @@ function tz() { return Session.getScriptTimeZone(); }
 function normPhone(v) { return String(v || '').replace(/\D/g, '').slice(-9); }
 function isTrue(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
 function fmt(d, pattern) { return Utilities.formatDate(d, tz(), pattern || 'yyyy/MM/dd HH:mm'); }
+function parseJson(s, fallback) { try { return JSON.parse(s); } catch (e) { return fallback; } }
 function withLock(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try { return fn(); } finally { lock.releaseLock(); }
 }
 
-/** 截止時間統一存成「yyyy-MM-dd HH:mm」文字 */
-function normDeadline(v) {
+/** 時間統一存成「yyyy-MM-dd HH:mm」文字 */
+function normTime(v) {
   if (v instanceof Date) return fmt(v, 'yyyy-MM-dd HH:mm');
   const s = String(v || '').trim().replace('T', ' ').slice(0, 16);
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s) ? s : '';
 }
-function deadlineDate(s) {
-  return s ? Utilities.parseDate(s, tz(), 'yyyy-MM-dd HH:mm') : null;
+function parseTime(s) { return s ? Utilities.parseDate(s, tz(), 'yyyy-MM-dd HH:mm') : null; }
+
+/** 「11/20（五）09:00–12:00」；跨日時兩邊都寫日期 */
+function dayLabel(d) { return fmt(d, 'M/d') + '（' + '一二三四五六日'.charAt(Number(fmt(d, 'u')) - 1) + '）'; }
+function fmtRange(start, end) {
+  const a = parseTime(start);
+  if (!a) return '';
+  let t = dayLabel(a) + ' ' + fmt(a, 'HH:mm');
+  const b = parseTime(end);
+  if (b) t += fmt(a, 'yyyyMMdd') === fmt(b, 'yyyyMMdd') ? '–' + fmt(b, 'HH:mm') : ' – ' + dayLabel(b) + ' ' + fmt(b, 'HH:mm');
+  return t;
 }
 
 function rowToEvent(r) {
@@ -119,14 +131,16 @@ function rowToEvent(r) {
     date: r[EV.DATE] instanceof Date ? fmt(r[EV.DATE]) : String(r[EV.DATE] || ''),
     place: String(r[EV.PLACE] || ''), desc: String(r[EV.DESC] || ''), image: String(r[EV.IMAGE] || ''),
     button: String(r[EV.BUTTON] || '我要報名'), open: isTrue(r[EV.OPEN]),
-    capacity: parseInt(r[EV.CAP], 10) || 0, deadline: normDeadline(r[EV.DEADLINE]),
+    capacity: parseInt(r[EV.CAP], 10) || 0, deadline: normTime(r[EV.DEADLINE]),
+    start: normTime(r[EV.START]), end: normTime(r[EV.END]),
+    questions: parseJson(r[EV.QUESTIONS], []) || [],
   };
 }
 
 /** 活動狀態：open 報名中、full 額滿、ended 已過截止時間、closed 主辦人停止 */
 function stateOf(ev, count) {
   if (!ev.open) return 'closed';
-  const dl = deadlineDate(ev.deadline);
+  const dl = parseTime(ev.deadline);
   if (dl && new Date() > dl) return 'ended';
   if (ev.capacity && count >= ev.capacity) return 'full';
   return 'open';
@@ -142,19 +156,26 @@ function withStats(ev, log) {
 function cleanEventInput(ev) {
   const title = String(ev.title || '').trim();
   if (!title) throw new Error('請填寫活動名稱');
+  const start = normTime(ev.start);
+  let end = normTime(ev.end);
+  if (!start && end) throw new Error('有結束時間時，也要填開始時間');
+  if (start && end && end <= start) throw new Error('結束時間要晚於開始時間');
+  const questions = (Array.isArray(ev.questions) ? ev.questions : [])
+    .map(q => String(q || '').trim().slice(0, 40)).filter(Boolean).slice(0, 5);
   return {
-    title,
-    date: String(ev.date || '').trim(),
+    title, start, end,
+    date: start ? fmtRange(start, end) : String(ev.date || '').trim(),
     place: String(ev.place || '').trim(),
     desc: String(ev.desc || '').trim(),
     image: /^https:\/\//.test(ev.image || '') ? String(ev.image).trim() : '',
     button: String(ev.button || '我要報名').trim().slice(0, 20) || '我要報名',
     capacity: Math.max(0, parseInt(ev.capacity, 10) || 0),
-    deadline: normDeadline(ev.deadline),
+    deadline: normTime(ev.deadline),
+    questions,
   };
 }
 
-/* ---------- 發布者 ---------- */
+/* ---------- 發布者與權限 ---------- */
 function isPublisher(uid) { return rows(SH.PUBLISHERS).some(r => String(r[0]).trim() === uid); }
 function requirePublisher(user) { if (!isPublisher(user.userId)) throw new Error('只有管理員可以使用這個功能'); }
 
@@ -163,6 +184,24 @@ function creatorOf(row) { const m = /\((U[0-9a-f]+)\)\s*$/.exec(String(row[EV.CR
 function requireOwner(user, eventId) {
   if (isPublisher(user.userId)) return;
   if (creatorOf(findEventRow(eventId).row) !== user.userId) throw new Error('只有活動建立者可以管理這個活動');
+}
+
+/* ---------- 圖片上傳 ---------- */
+function imageFolder() {
+  const it = DriveApp.getFoldersByName(CONFIG.IMAGE_FOLDER);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(CONFIG.IMAGE_FOLDER);
+}
+
+function uploadImage(user, data, mime) {
+  mime = /^image\/(jpeg|png)$/.test(mime) ? mime : 'image/jpeg';
+  const b64 = String(data || '').replace(/^data:[^,]+,/, '');
+  if (!b64) throw new Error('沒有收到圖片');
+  if (b64.length > 7000000) throw new Error('圖片太大，請換一張小一點的');
+  const name = 'event-' + fmt(new Date(), 'yyyyMMdd-HHmmss') + (mime === 'image/png' ? '.png' : '.jpg');
+  const file = imageFolder().createFile(Utilities.newBlob(Utilities.base64Decode(b64), mime, name));
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); // LINE 圖卡要能公開讀取
+  file.setDescription('上傳者：' + user.displayName);
+  return 'https://lh3.googleusercontent.com/d/' + file.getId();
 }
 
 /* ---------- 活動 ---------- */
@@ -181,7 +220,8 @@ function createEvent(user, input) {
   const ev = cleanEventInput(input);
   const id = 'E' + fmt(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
   const row = [id, ev.title, ev.date, ev.place, ev.desc, ev.image, ev.button, true,
-    user.displayName + ' (' + user.userId + ')', new Date(), ev.capacity || '', ev.deadline];
+    user.displayName + ' (' + user.userId + ')', new Date(), ev.capacity || '', ev.deadline,
+    ev.start, ev.end, JSON.stringify(ev.questions)];
   sheet(SH.EVENTS).appendRow(row);
   return withStats(rowToEvent(row), []);
 }
@@ -192,7 +232,7 @@ function updateEvent(id, input) {
     const f = findEventRow(id);
     const sh = sheet(SH.EVENTS);
     sh.getRange(f.index, EV.TITLE + 1, 1, 6).setValues([[ev.title, ev.date, ev.place, ev.desc, ev.image, ev.button]]);
-    sh.getRange(f.index, EV.CAP + 1, 1, 2).setValues([[ev.capacity || '', ev.deadline]]);
+    sh.getRange(f.index, EV.CAP + 1, 1, 5).setValues([[ev.capacity || '', ev.deadline, ev.start, ev.end, JSON.stringify(ev.questions)]]);
     return withStats(getEvent(id));
   });
 }
@@ -211,6 +251,11 @@ function listEvents(user) {
   });
 }
 
+function answersOf(r) { return parseJson(r[7], []) || []; }
+
+/** 接龍上的一行：「簡晨光，三杯雞」 */
+function rollLine(r) { return [String(r[3])].concat(answersOf(r).filter(Boolean)).join('，'); }
+
 function eventDetail(id) {
   const ev = getEvent(id);
   if (!ev) throw new Error('找不到這個活動');
@@ -219,7 +264,7 @@ function eventDetail(id) {
     event: withStats(ev, log),
     attendees: log.map(r => ({
       time: r[0] instanceof Date ? fmt(r[0], 'M/d HH:mm') : String(r[0]),
-      name: String(r[3]), lineName: String(r[4] || ''),
+      name: String(r[3]), lineName: String(r[4] || ''), answers: answersOf(r),
     })),
   };
 }
@@ -283,12 +328,13 @@ function removeMember(row, name) {
 }
 
 /* ---------- 報名 ---------- */
-function register(user, eventId) {
+/** answers 是依照活動問題順序的回答陣列；活動有問題但還沒收到回答時，回傳 need_answers 請前端顯示問題 */
+function register(user, eventId, answers) {
   return withLock(() => {
     const ev = getEvent(eventId);
     if (!ev) throw new Error('找不到這個活動');
     const log = logOf(ev.id);
-    const names = () => log.map(r => String(r[3]));
+    const lines = () => log.map(rollLine);
     const state = stateOf(ev, log.length);
 
     const rs = sheet(SH.ROSTER);
@@ -303,20 +349,22 @@ function register(user, eventId) {
     const name = String(data[idx][0]);
     if (user.displayName && data[idx][3] !== user.displayName) rs.getRange(idx + 1, 4).setValue(user.displayName);
 
-    if (log.some(r => String(r[5]) === user.userId)) {
-      return { ok: true, status: 'already', name, event: withStats(ev, log), names: names() };
-    }
+    const mine = log.find(r => String(r[5]) === user.userId);
+    if (mine) return { ok: true, status: 'already', name, event: withStats(ev, log), names: lines(), answers: answersOf(mine) };
     if (state !== 'open') return { ok: true, status: state, name, event: withStats(ev, log) };
+    if (ev.questions.length && !Array.isArray(answers)) return { ok: true, status: 'need_answers', name, event: withStats(ev, log) };
 
-    const entry = [new Date(), ev.id, ev.title, name, user.displayName, user.userId];
+    const ans = ev.questions.map((q, i) => String((answers || [])[i] || '').trim().slice(0, 100));
+    const readable = ev.questions.map((q, i) => ans[i] ? q.replace(/[？?]\s*$/, '') + '：' + ans[i] : '').filter(Boolean).join('｜');
+    const entry = [new Date(), ev.id, ev.title, name, user.displayName, user.userId, readable, JSON.stringify(ans)];
     sheet(SH.LOG).appendRow(entry);
     log.push(entry);
-    return { ok: true, status: 'registered', name, event: withStats(ev, log), names: names() };
+    return { ok: true, status: 'registered', name, event: withStats(ev, log), names: lines() };
   });
 }
 
 /** 第一次報名：用姓名＋手機比對名單並綁定 LINE；名單上沒有就自動加入 */
-function bind(user, eventId, name, phone) {
+function bind(user, eventId, name, phone, answers) {
   name = String(name || '').trim();
   const p = normPhone(phone);
   if (!name || p.length < 9) throw new Error('請填寫姓名和完整手機號碼');
@@ -341,5 +389,5 @@ function bind(user, eventId, name, phone) {
     rs.getRange(idx + 1, 3, 1, 2).setValues([[user.userId, user.displayName]]);
     return null;
   });
-  return result || register(user, eventId);
+  return result || register(user, eventId, answers);
 }

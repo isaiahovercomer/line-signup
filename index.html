@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#DDE7EF">
-<title>活動報名</title>
+<title>LINE介面活動登記建立平台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
@@ -82,6 +82,16 @@
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row2 > .field { min-width: 0; }
 
+  .img-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .img-pick .btn.small { margin: 0; }
+  .q-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .q-row input { flex: 1; min-width: 0; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 11px 14px; font-size: 16px; }
+  .q-row input:focus { outline: none; border-color: var(--ink); }
+  .q-del { width: 46px; flex: none; border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; font-size: 20px; color: var(--ink-2); cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1.5px dashed var(--ink-2); background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .chip.new { border-style: solid; border-color: var(--ink); font-weight: 700; }
+
   /* ---------- 底部固定按鈕 ---------- */
   .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(221,231,239,0)); z-index: 5; }
   .dock .inner { max-width: 480px; margin: 0 auto; }
@@ -125,6 +135,7 @@
   .roll .nm { font-weight: 500; min-width: 0; word-break: break-word; }
   .roll .nm small { display: block; color: var(--ink-2); font-size: 12px; font-weight: 400; }
   .roll time { color: var(--ink-2); font-size: 13px; }
+  .roll .nm small.ans { color: var(--ink); font-size: 14px; margin-top: 2px; }
 
   /* ---------- 成員 ---------- */
   .add-member { background: var(--paper); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
@@ -220,12 +231,12 @@ function toast(msg) {
 const demo = {
   me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
   events: [
-    { id: 'E1', title: '週六河濱淨灘', date: '11/8（六）08:30', place: '大稻埕碼頭 5 號水門', desc: '手套和夾子現場提供，請自備水壺。', image: '', button: '我要報名', open: true, capacity: 30, deadline: '2026-11-07 21:00' },
-    { id: 'E2', title: '十一月讀書會', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59' },
+    { id: 'E1', title: '年終愛筵', start: '2026-12-20 18:00', end: '2026-12-20 21:00', date: '12/20（日）18:00–21:00', place: '教會一樓', desc: '每家帶一道菜，一起分享。', image: '', button: '我要報名', open: true, capacity: 60, deadline: '2026-12-18 21:00', questions: ['我可以預備？', '同行人數'] },
+    { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [] },
   ],
   log: {
-    E1: [['11/5 20:14', '王小明', '小明'], ['11/5 20:31', '陳怡君', 'Yi-Chun'], ['11/6 07:02', '簡晨光', '晨光']],
-    E2: [['10/28 09:10', '林志豪', '志豪']],
+    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['甜點', '']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3']]],
+    E2: [['10/28 09:10', '林志豪', '志豪', []]],
   },
   members: [
     { name: '王小明', phone: '0912345678', bound: true, lineName: '小明' },
@@ -249,19 +260,19 @@ async function demoApi(action, d) {
   await new Promise(r => setTimeout(r, 300));
   const find = id => demo.events.find(e => e.id === id);
   const ev = demoEvent(demo.events[0]);
-  const names = (demo.log.E1 || []).map(x => x[1]);
+  const names = (demo.log.E1 || []).map(x => [x[1]].concat(x[3].filter(Boolean)).join('，'));
   switch (action) {
     case 'me': return { ok: true, ...demo.me };
     case 'listEvents': return { ok: true, events: demo.events.map(demoEvent) };
     case 'eventDetail': {
       const e = find(d.eventId);
-      return { ok: true, event: demoEvent(e), attendees: (demo.log[e.id] || []).map(x => ({ time: x[0], name: x[1], lineName: x[2] })) };
+      return { ok: true, event: demoEvent(e), attendees: (demo.log[e.id] || []).map(x => ({ time: x[0], name: x[1], lineName: x[2], answers: x[3] })) };
     }
     case 'createEvent': {
-      const e = { ...d.event, id: 'E' + Date.now(), open: true, capacity: +d.event.capacity || 0 };
+      const e = { ...d.event, date: fmtRange(d.event.start, d.event.end) || d.event.date, id: 'E' + Date.now(), open: true, capacity: +d.event.capacity || 0 };
       demo.events.unshift(e); return { ok: true, event: demoEvent(e) };
     }
-    case 'updateEvent': { const e = find(d.eventId); Object.assign(e, d.event, { capacity: +d.event.capacity || 0 }); return { ok: true, event: demoEvent(e) }; }
+    case 'updateEvent': { const e = find(d.eventId); Object.assign(e, d.event, { date: fmtRange(d.event.start, d.event.end) || d.event.date, capacity: +d.event.capacity || 0 }); return { ok: true, event: demoEvent(e) }; }
     case 'setOpen': { const e = find(d.eventId); e.open = d.open; return { ok: true, event: demoEvent(e) }; }
     case 'listMembers': return { ok: true, members: demoMembers() };
     case 'addMember': {
@@ -273,6 +284,7 @@ async function demoApi(action, d) {
     case 'register': {
       const s = PARAMS.get('demo');
       if (s === 'bind') return { ok: true, status: 'need_bind', event: ev };
+      if (s === 'answer' && !d.answers) return { ok: true, status: 'need_answers', name: '簡晨光', event: ev };
       if (s === 'already') return { ok: true, status: 'already', name: '簡晨光', event: ev, names };
       if (s === 'full') return { ok: true, status: 'full', event: { ...ev, state: 'full' } };
       return { ok: true, status: 'registered', name: '簡晨光', event: ev, names };
@@ -302,7 +314,7 @@ async function main() {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
     }
     const eventId = new URLSearchParams(location.search).get('event');
-    const demoMember = DEMO && ['member', 'bind', 'already', 'full'].includes(PARAMS.get('demo'));
+    const demoMember = DEMO && ['member', 'bind', 'answer', 'already', 'full'].includes(PARAMS.get('demo'));
     if (eventId || demoMember) await memberFlow(eventId || 'E1');
     else await publisherFlow();
   } catch (e) {
@@ -319,7 +331,7 @@ function ticket(ev, stubHtml, extra = '') {
   if (shortTime(ev.deadline)) meta.push(`<dt>截止</dt><dd>${shortTime(ev.deadline)}</dd>`);
   return `<article class="ticket">
     ${extra}
-    ${isHttps(ev.image) ? `<img class="hero" src="${esc(ev.image)}" alt="" onerror="this.remove()">` : ''}
+    ${/^(https:|data:image\/)/.test(ev.image || '') ? `<img class="hero" src="${esc(ev.image)}" alt="" onerror="this.remove()">` : ''}
     <div class="main">
       <h2 class="title ${ev.title ? '' : 'empty'}">${esc(ev.title || '活動名稱')}</h2>
       ${meta.length ? `<dl>${meta.join('')}</dl>` : ''}
@@ -338,6 +350,7 @@ async function memberFlow(eventId) {
 
 function showResult(r, eventId) {
   const ev = r.event || {};
+  if (ev.title) document.title = ev.title;
   const done = (stamp, cls, line, sub) => view(`<section class="solo">
       ${ticket(ev, `<div class="result-msg"><p>${line}</p>${sub ? `<p class="muted">${sub}</p>` : ''}<p class="posted" id="posted" hidden></p></div>`,
         `<div class="stamp land ${cls}" aria-hidden="true">${stamp}</div>`)}
@@ -357,6 +370,7 @@ function showResult(r, eventId) {
     case 'ended':       done('截止', 'ink', '報名時間已經過了。', '有問題請直接聯絡主辦人。'); break;
     case 'closed':      done('截止', 'ink', '這個活動已經停止報名。', '有問題請直接聯絡主辦人。'); break;
     case 'need_bind':   bindForm(eventId, ev); break;
+    case 'need_answers': answerForm(eventId, ev, r.name); break;
     case 'not_found':   bindForm(eventId, ev, '名單裡找不到這組姓名和手機。請確認輸入正確，或聯絡主辦人把你加進名單。'); break;
     case 'bound_other': done('待確認', 'ink', '這筆名單資料已經綁定另一個 LINE 帳號。', '請聯絡主辦人協助處理。'); break;
     default:            done('錯誤', 'ink', '收到無法辨識的回應。', '請稍後再試一次。');
@@ -398,14 +412,21 @@ function addRepostButton(ev, names, who) {
   box.insertBefore(b, box.querySelector('.ticket').nextSibling); // 放在「回到聊天室」上面
 }
 
+/** 活動設定的問題，報名時一起填 */
+const questionFields = ev => (ev.questions || []).map((q, i) =>
+  `<label class="field"><span>${esc(q)}</span><input data-ans="${i}" maxlength="100" placeholder="選填"></label>`).join('');
+const collectAnswers = ev => (ev.questions || []).map((q, i) => (document.querySelector(`[data-ans="${i}"]`) || {}).value || '');
+
 function bindForm(eventId, ev, warn = '') {
+  const hasQ = (ev.questions || []).length > 0;
   view(`<section class="solo">
     ${ticket(ev, `<div class="result-msg">
         <p><b>第一次報名，請留下姓名和手機</b></p>
-        <p class="muted" style="margin-bottom:14px">只要填這一次，之後按圖卡就直接報名。</p>
+        <p class="muted" style="margin-bottom:14px">姓名和手機只要填這一次，之後按圖卡就直接報名。</p>
         ${warn ? `<p class="warn" role="alert">${esc(warn)}</p>` : ''}
         <label class="field"><span>姓名</span><input id="f-name" autocomplete="name"></label>
         <label class="field"><span>手機</span><input id="f-phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0912345678"></label>
+        ${questionFields(ev)}
         <button id="f-go" class="btn send" style="margin-top:6px">確認並報名</button>
       </div>`)}
   </section>`);
@@ -413,16 +434,35 @@ function bindForm(eventId, ev, warn = '') {
   btn.onclick = async () => {
     btn.disabled = true; btn.textContent = '確認中';
     try {
-      showResult(await api('bind', { eventId, name: $('f-name').value, phone: $('f-phone').value }), eventId);
+      const body = { eventId, name: $('f-name').value, phone: $('f-phone').value };
+      if (hasQ) body.answers = collectAnswers(ev);
+      showResult(await api('bind', body), eventId);
     } catch (e) {
       toast(e.message); btn.disabled = false; btn.textContent = '確認並報名';
     }
   };
 }
 
+function answerForm(eventId, ev, name) {
+  view(`<section class="solo">
+    ${ticket(ev, `<div class="result-msg">
+        <p><b>${esc(name)}，報名前請回答</b></p>
+        <p class="muted" style="margin-bottom:14px">回答會顯示在群組的接龍名單上。</p>
+        ${questionFields(ev)}
+        <button id="f-go" class="btn send" style="margin-top:6px">送出報名</button>
+      </div>`)}
+  </section>`);
+  const btn = $('f-go');
+  btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = '送出中';
+    try { showResult(await api('register', { eventId, answers: collectAnswers(ev) }), eventId); }
+    catch (e) { toast(e.message); btn.disabled = false; btn.textContent = '送出報名'; }
+  };
+}
+
 /* ================= 發布者平台 ================= */
 let ME = null, EVENTS = [], MEMBERS = null, TAB = 'new', ROUTE = { view: 'tabs' };
-const blankDraft = () => ({ title: '', date: '', place: '', desc: '', image: '', button: '我要報名', capacity: '', deadline: '' });
+const blankDraft = () => ({ title: '', start: '', end: '', date: '', place: '', desc: '', image: '', button: '我要報名', capacity: '', deadline: '', questions: [] });
 let draft = blankDraft();
 let editDraft = null;
 
@@ -448,7 +488,7 @@ function render() {
   if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
   const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
   view(`
-    <header class="top"><h1>報名圖卡</h1><span class="who">${esc(ME.displayName)}</span></header>
+    <header class="top"><h1>建立活動登記圖卡</h1><span class="who">${esc(ME.displayName)}</span></header>
     ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
@@ -464,6 +504,9 @@ function render() {
 }
 
 /* ---------- 活動表單（新增與編輯共用） ---------- */
+const PRESET_QUESTIONS = ['我可以預備？', '同行人數', '飲食需求', '備註'];
+const MAX_QUESTIONS = 5;
+
 function eventForm(d) {
   const f = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input data-k="${k}" value="${esc(d[k])}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
   return `
@@ -471,35 +514,129 @@ function eventForm(d) {
     <p class="caption">群組裡的人會看到這張圖卡</p>
     <div class="group"><h2>活動</h2>
       ${f('title', '活動名稱', 'maxlength="60"')}
-      <div class="row2">${f('date', '時間', 'placeholder="11/20（五）19:00"')}${f('place', '地點')}</div>
+      <div class="row2">
+        ${f('start', '開始時間', 'type="datetime-local"')}
+        ${f('end', '結束時間', 'type="datetime-local"', '選填')}
+      </div>
+      ${f('place', '地點')}
     </div>
     <div class="group"><h2>名額與截止</h2>
       <div class="row2">
         ${f('capacity', '人數上限', 'type="number" inputmode="numeric" min="0" placeholder="不限"')}
-        ${f('deadline', '截止時間', 'type="datetime-local"')}
+        ${f('deadline', '報名截止', 'type="datetime-local"')}
       </div>
       <div class="help">都可以留白。額滿或過了截止時間，報名會自動停止。</div>
     </div>
     <div class="group"><h2>內容</h2>
       <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea></label>
-      ${f('image', '圖片網址', 'type="url" inputmode="url" placeholder="https://"', '選填。要用 https 開頭、公開的圖片連結。')}
+      <div class="field"><span>圖片</span>
+        <div class="img-pick">
+          <label class="btn plain small">上傳圖片<input type="file" accept="image/*" id="img-file" hidden></label>
+          <button type="button" class="btn plain small" id="img-clear" ${d.image ? '' : 'hidden'}>移除圖片</button>
+          <span class="help" id="img-status"></span>
+        </div>
+        <input data-k="image" type="url" inputmode="url" value="${esc(d.image)}" placeholder="或貼上圖片網址 https://">
+      </div>
       ${f('button', '按鈕文字', 'maxlength="20"')}
+    </div>
+    <div class="group"><h2>報名時要問的問題</h2>
+      <div class="help" style="margin:-4px 0 10px">選填。回答會跟名字一起顯示在接龍名單，例如「簡晨光，三杯雞」。</div>
+      <div id="q-list"></div>
+      <div class="chips" id="q-chips"></div>
     </div>`;
 }
 
 function bindEventForm(d) {
   document.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
-    d[el.dataset.k] = el.value; preview(d);
+    d[el.dataset.k] = el.value;
+    if (el.dataset.k === 'image') $('img-clear').hidden = !d.image;
+    preview(d);
   }));
+  $('img-file').onchange = e => uploadPicked(e.target, d);
+  $('img-clear').onclick = () => { d.image = ''; document.querySelector('[data-k=image]').value = ''; $('img-clear').hidden = true; preview(d); };
+  drawQuestions(d);
   preview(d);
 }
 
+/** 問題清單：已加的問題可改字或刪除，下面是常用問題與「新增問題」 */
+function drawQuestions(d) {
+  const list = $('q-list'), chips = $('q-chips');
+  list.innerHTML = d.questions.map((q, i) => `
+    <div class="q-row"><input data-q="${i}" value="${esc(q)}" maxlength="40" placeholder="輸入問題">
+      <button type="button" class="q-del" data-qdel="${i}" aria-label="刪除這個問題">×</button></div>`).join('');
+  const room = d.questions.length < MAX_QUESTIONS;
+  const unused = PRESET_QUESTIONS.filter(p => !d.questions.includes(p));
+  chips.innerHTML = room ? unused.map(p => `<button type="button" class="chip" data-qadd="${esc(p)}">＋ ${esc(p)}</button>`).join('')
+    + `<button type="button" class="chip new" data-qadd="">＋ 新增問題</button>` : `<span class="help">最多 ${MAX_QUESTIONS} 個問題</span>`;
+  list.querySelectorAll('[data-q]').forEach(el => el.oninput = () => { d.questions[+el.dataset.q] = el.value; });
+  list.querySelectorAll('[data-qdel]').forEach(b => b.onclick = () => { d.questions.splice(+b.dataset.qdel, 1); drawQuestions(d); });
+  chips.querySelectorAll('[data-qadd]').forEach(b => b.onclick = () => {
+    d.questions.push(b.dataset.qadd); drawQuestions(d);
+    if (!b.dataset.qadd) list.querySelector(`[data-q="${d.questions.length - 1}"]`).focus();
+  });
+}
+
+/** 先在手機上縮小圖片（最寬 1200px），再上傳到主辦的 Google 雲端硬碟 */
+async function uploadPicked(input, d) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const status = $('img-status');
+  status.textContent = '上傳中…';
+  try {
+    const dataUrl = await shrinkImage(file, 1200, 0.85);
+    if (DEMO) { d.image = dataUrl; }
+    else { d.image = (await api('uploadImage', { data: dataUrl, mime: 'image/jpeg' })).url; }
+    document.querySelector('[data-k=image]').value = DEMO ? '' : d.image;
+    $('img-clear').hidden = false;
+    status.textContent = '已上傳';
+    preview(d);
+  } catch (e) {
+    status.textContent = '';
+    toast('上傳失敗：' + e.message);
+  }
+}
+
+function shrinkImage(file, maxW, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxW / img.naturalWidth);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('無法讀取這張圖片'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/** 「11/20（五）09:00–12:00」，與後端的格式相同 */
+function fmtRange(start, end) {
+  const p = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s || ''); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; };
+  const a = p(start); if (!a) return '';
+  const b = p(end);
+  const day = d => `${d.getMonth() + 1}/${d.getDate()}（${'日一二三四五六'[d.getDay()]}）`;
+  const hm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  let t = `${day(a)} ${hm(a)}`;
+  if (b) t += a.toDateString() === b.toDateString() ? `–${hm(b)}` : ` – ${day(b)} ${hm(b)}`;
+  return t;
+}
+
 function preview(d) {
-  $('pv').innerHTML = ticket({ ...d, title: d.title.trim() },
+  $('pv').innerHTML = ticket({ ...d, title: d.title.trim(), date: fmtRange(d.start, d.end) || d.date },
     `<div class="stub"><span class="notch"></span><span class="fake-btn">${esc(d.button.trim() || '我要報名')}</span></div>`);
 }
 
-const toPayload = d => ({ ...d, button: d.button.trim() || '我要報名', deadline: (d.deadline || '').replace('T', ' ') });
+const toPayload = d => ({
+  ...d,
+  button: d.button.trim() || '我要報名',
+  start: (d.start || '').replace('T', ' '), end: (d.end || '').replace('T', ' '), deadline: (d.deadline || '').replace('T', ' '),
+  questions: d.questions.map(q => q.trim()).filter(Boolean),
+});
 
 function renderCompose() {
   $('panel').innerHTML = eventForm(draft);
@@ -562,7 +699,7 @@ async function renderDetail(id) {
     </div>
     <div class="roll-head"><h2>報名名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
     ${list.length ? `<ol class="roll">${list.map(a => `
-        <li><span class="nm">${esc(a.name)}${a.lineName && a.lineName !== a.name ? `<small>LINE：${esc(a.lineName)}</small>` : ''}</span><time>${esc(a.time)}</time></li>`).join('')}</ol>`
+        <li><span class="nm">${esc(a.name)}${answerText(ev, a) ? `<small class="ans">${esc(answerText(ev, a))}</small>` : ''}${a.lineName && a.lineName !== a.name ? `<small>LINE：${esc(a.lineName)}</small>` : ''}</span><time>${esc(a.time)}</time></li>`).join('')}</ol>`
       : `<div class="empty">還沒有人報名。把圖卡發到群組，大家就能一鍵報名。</div>`}`);
 
   $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
@@ -574,8 +711,13 @@ async function renderDetail(id) {
     catch (e) { toast(e.message); $('toggle').disabled = false; }
   };
   if (list.length) $('copy').onclick = () => copyText(
-    `${ev.title}\n報名 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${a.name}`).join('\n'),
+    `${ev.title}\n報名 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${[a.name].concat((a.answers || []).filter(Boolean)).join('，')}`).join('\n'),
     '已複製名單');
+}
+
+/** 名單上回答的顯示：「我可以預備：三杯雞｜同行人數：3」 */
+function answerText(ev, a) {
+  return (ev.questions || []).map((q, i) => (a.answers || [])[i] ? `${q.replace(/[？?]\s*$/, '')}：${a.answers[i]}` : '').filter(Boolean).join('｜');
 }
 
 /* ---------- 編輯活動 ---------- */
@@ -584,7 +726,9 @@ function renderEdit(id) {
   if (!ev) return go({ view: 'tabs' });
   editDraft = {
     title: ev.title, date: ev.date, place: ev.place, desc: ev.desc, image: ev.image, button: ev.button,
+    start: (ev.start || '').replace(' ', 'T'), end: (ev.end || '').replace(' ', 'T'),
     capacity: ev.capacity ? String(ev.capacity) : '', deadline: (ev.deadline || '').replace(' ', 'T'),
+    questions: [...(ev.questions || [])],
   };
   view(`
     <div class="subbar"><button class="back" id="back">‹ 取消</button><h1>編輯活動</h1><span></span></div>
