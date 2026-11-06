@@ -265,6 +265,7 @@ function listEvents(user) {
   return rows(SH.EVENTS).filter(r => all || creatorOf(r) === user.userId).reverse().slice(0, 50).map(r => {
     const ev = rowToEvent(r);
     ev.creator = String(r[EV.CREATOR] || '').replace(/\s*\(U[0-9a-f]+\)\s*$/, '');
+    ev.mine = creatorOf(r) === user.userId; // 套用舊活動時只列自己建立的
     const count = counts[ev.id] || 0;
     return Object.assign(ev, { count, state: stateOf(ev, count) });
   });
