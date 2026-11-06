@@ -401,7 +401,7 @@ function addRepostButton(ev, names, who) {
 function bindForm(eventId, ev, warn = '') {
   view(`<section class="solo">
     ${ticket(ev, `<div class="result-msg">
-        <p><b>第一次報名，請確認身分</b></p>
+        <p><b>第一次報名，請留下姓名和手機</b></p>
         <p class="muted" style="margin-bottom:14px">只要填這一次，之後按圖卡就直接報名。</p>
         ${warn ? `<p class="warn" role="alert">${esc(warn)}</p>` : ''}
         <label class="field"><span>姓名</span><input id="f-name" autocomplete="name"></label>
@@ -632,7 +632,7 @@ async function renderMembers() {
       </div>
       <button class="btn ink" type="submit">加入名單</button>
     </form>
-    <p class="summary">共 ${MEMBERS.length} 人，${boundN} 人已綁定 LINE。只有名單上的人能報名。</p>
+    <p class="summary">共 ${MEMBERS.length} 人，${boundN} 人已綁定 LINE。第一次報名的人會自動加入名單。</p>
     <input class="search" id="q" type="search" placeholder="搜尋姓名或手機" value="${esc(memberQuery)}">
     <ul class="members" id="mlist"></ul>`;
 

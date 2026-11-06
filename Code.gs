@@ -304,7 +304,7 @@ function register(user, eventId) {
   });
 }
 
-/** 第一次報名：用姓名＋手機比對名單，把 LINE userId 綁上去 */
+/** 第一次報名：用姓名＋手機比對名單並綁定 LINE；名單上沒有就自動加入 */
 function bind(user, eventId, name, phone) {
   name = String(name || '').trim();
   const p = normPhone(phone);
@@ -318,7 +318,13 @@ function bind(user, eventId, name, phone) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][0]).trim() === name && normPhone(data[i][1]) === p) { idx = i; break; }
     }
-    if (idx < 0) return { ok: true, status: 'not_found', event: getEvent(eventId) };
+    if (idx < 0) {
+      // 第一次報名、名單上還沒有這個人：自動加入名單並綁定
+      const at = rs.getLastRow() + 1;
+      rs.getRange(at, 2).setNumberFormat('@');
+      rs.getRange(at, 1, 1, 4).setValues([[name, String(phone).replace(/\D/g, ''), user.userId, user.displayName]]);
+      return null;
+    }
     const bound = String(data[idx][2]).trim();
     if (bound && bound !== user.userId) return { ok: true, status: 'bound_other', event: getEvent(eventId) };
     rs.getRange(idx + 1, 3, 1, 2).setValues([[user.userId, user.displayName]]);
