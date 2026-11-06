@@ -144,11 +144,21 @@
   .stat .sum b { font-family: var(--serif); font-size: 34px; line-height: 1; }
   .stat .sum span { color: var(--ink-2); font-size: 14px; }
   .stat ul { list-style: none; margin: 10px 0 0; padding: 0; }
-  .stat li { display: grid; grid-template-columns: minmax(5em, auto) 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--sky); align-items: baseline; }
+  .stat li { padding: 9px 0; border-top: 1px solid var(--sky); }
   .stat li:first-child { border-top: 0; }
+  .stat li .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
   .stat .lbl { font-weight: 700; word-break: break-word; }
-  .stat .lbl em { font-style: normal; color: var(--stamp); margin-left: 6px; font-size: 13px; }
-  .stat .who { color: var(--ink-2); font-size: 14px; word-break: break-word; }
+  .stat .cnt { color: var(--ink-2); font-size: 13px; white-space: nowrap; }
+  .stat .cnt.dup { color: var(--stamp); font-weight: 700; }
+  .stat .bar { height: 8px; background: var(--sky); border-radius: 4px; margin: 6px 0 4px; overflow: hidden; }
+  .stat .bar i { display: block; height: 100%; background: var(--ink); border-radius: 4px; }
+  .stat .who { color: var(--ink-2); font-size: 13px; word-break: break-word; }
+  .chart { display: flex; align-items: flex-end; gap: 6px; height: 150px; margin-top: 12px; overflow-x: auto; }
+  .chart .col { flex: 1; min-width: 28px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+  .chart .track { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-height: 0; }
+  .chart .col i { width: 100%; max-width: 36px; background: var(--line); border-radius: 6px 6px 2px 2px; }
+  .chart .n { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .chart .d { font-size: 11px; color: var(--ink-2); margin-top: 5px; white-space: nowrap; }
 
   /* ---------- 成員 ---------- */
   .add-member { background: var(--paper); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
@@ -248,7 +258,7 @@ const demo = {
     { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [] },
   ],
   log: {
-    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3']]],
+    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
     E2: [['10/28 09:10', '林志豪', '志豪', []]],
   },
   members: [
@@ -732,8 +742,19 @@ async function renderDetail(id) {
 /** 依每個問題整理回答：全是數字就加總，其他相同答案歸在一起 */
 function statsHtml(ev, list) {
   const qs = ev.questions || [];
-  if (!qs.length || !list.length) return '';
+  if (!list.length) return '';
   const num = v => { const m = /^\s*(\d+(?:\.\d+)?)\s*(人|位|個|份)?\s*$/.exec(v); return m ? +m[1] : null; };
+
+  // 報名趨勢：每天幾人報名（最近 14 天有報名的日子）
+  const days = new Map();
+  list.forEach(a => { const d = String(a.time).split(' ')[0]; days.set(d, (days.get(d) || 0) + 1); });
+  const dayList = [...days].slice(-14);
+  const peak = Math.max(...dayList.map(d => d[1]));
+  const trend = `<div class="stat"><h3>報名趨勢</h3><p class="meta">共 ${list.length} 人，每天報名人數</p>
+    <div class="chart" role="img" aria-label="${dayList.map(([d, n]) => `${d} ${n} 人`).join('，')}">
+      ${dayList.map(([d, n]) => `<div class="col"><div class="track"><span class="n">${n}</span><i style="height:${Math.max(6, n / peak * 100)}%"></i></div><span class="d">${esc(d)}</span></div>`).join('')}
+    </div></div>`;
+
   const cards = qs.map((q, i) => {
     const filled = list.map(a => ({ name: a.name, v: String((a.answers || [])[i] || '').trim() })).filter(x => x.v);
     const head = `<h3>${esc(q)}</h3><p class="meta">已回答 ${filled.length}／${list.length} 人</p>`;
@@ -744,11 +765,15 @@ function statsHtml(ev, list) {
     }
     const groups = new Map();
     filled.forEach(x => { const k = x.v.toLowerCase(); if (!groups.has(k)) groups.set(k, { label: x.v, names: [] }); groups.get(k).names.push(x.name); });
-    const rows = [...groups.values()].sort((a, b) => b.names.length - a.names.length).map(g => `
-      <li><span class="lbl">${esc(g.label)}${g.names.length > 1 ? `<em>×${g.names.length}</em>` : ''}</span><span class="who">${g.names.map(esc).join('、')}</span></li>`).join('');
+    const sorted = [...groups.values()].sort((a, b) => b.names.length - a.names.length);
+    const top = sorted[0].names.length;
+    const rows = sorted.map(g => `
+      <li><div class="top"><span class="lbl">${esc(g.label)}</span><span class="cnt ${g.names.length > 1 ? 'dup' : ''}">${g.names.length} 人</span></div>
+        <div class="bar"><i style="width:${g.names.length / top * 100}%"></i></div>
+        <div class="who">${g.names.map(esc).join('、')}</div></li>`).join('');
     return `<div class="stat">${head}<ul>${rows}</ul></div>`;
   }).join('');
-  return `<div class="roll-head"><h2>統計</h2></div><div class="stats">${cards}</div>`;
+  return `<div class="roll-head"><h2>統計</h2></div><div class="stats">${trend}${cards}</div>`;
 }
 
 /** 名單上回答的顯示：「我可以預備：三杯雞｜同行人數：3」 */
