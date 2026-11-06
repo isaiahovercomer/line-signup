@@ -355,10 +355,11 @@ async function demoApi(action, d) {
       const s = PARAMS.get('demo');
       if (s === 'bind') return { ok: true, status: 'need_bind', event: ev };
       if (s === 'answer' && !d.answers) return { ok: true, status: 'need_answers', name: '簡晨光', event: ev };
-      if (s === 'already') return { ok: true, status: 'already', name: '簡晨光', event: ev, names };
+      if (s === 'already') return { ok: true, status: 'already', name: '簡晨光', event: ev, names, answers: ['三杯雞', '3', '12大區'] };
       if (s === 'full') return { ok: true, status: 'full', event: { ...ev, state: 'full' } };
       return { ok: true, status: 'registered', name: '簡晨光', event: ev, names };
     }
+    case 'updateAnswers': return { ok: true, status: 'updated', name: '簡晨光', event: ev, names };
     case 'cancel': return { ok: true, status: 'cancelled', name: '簡晨光', event: { ...ev, count: ev.count - 1 }, names: names.slice(0, -1) };
     case 'bind': return { ok: true, status: 'registered', name: d.name || '簡晨光', event: ev, names: names.concat(d.name || []) };
   }
@@ -455,11 +456,16 @@ function showResult(r, eventId) {
     case 'already':
       done('已報名', '', `${esc(r.name)}，你之前就報名了。`, `目前 ${ev.count || (r.names || []).length} 人報名${cap}。`);
       addRepostButton(ev, r.names, r.name);
+      if ((ev.questions || []).length) addEditAnswersButton(eventId, ev, r.name, r.answers || []);
       addCancelButton(eventId, r.name);
       break;
     case 'full':        done('額滿', 'ink', '名額已經滿了。', '想候補請直接聯絡主辦人。'); break;
     case 'ended':       done('截止', 'ink', '報名時間已經過了。', '有問題請直接聯絡主辦人。'); break;
     case 'closed':      done('截止', 'ink', '這個活動已經停止報名。', '有問題請直接聯絡主辦人。'); break;
+    case 'updated':
+      done('已報名', '', `${esc(r.name)}，回答已更新。`, `目前 ${ev.count} 人報名${cap}。`);
+      if (r.names) postRoll(ev, r.names, r.name, '更新了回答');
+      break;
     case 'cancelled':
       done('已取消', 'ink', `${esc(r.name)}，已取消你的報名。`, `目前 ${ev.count} 人報名${cap}。想參加可以再按一次圖卡報名。`);
       if (r.names) postRoll(ev, r.names, r.name, '取消了報名');
@@ -561,20 +567,32 @@ function bindForm(eventId, ev, warn = '') {
   };
 }
 
-function answerForm(eventId, ev, name) {
+/** 已報名的人可以修改回答 */
+function addEditAnswersButton(eventId, ev, name, answers) {
+  const box = document.querySelector('.solo');
+  if (!box) return;
+  const b = document.createElement('button');
+  b.className = 'btn plain'; b.style.marginTop = '10px'; b.textContent = '修改我的回答';
+  b.onclick = () => answerForm(eventId, ev, name, answers);
+  box.insertBefore(b, box.querySelector('#fwd'));
+}
+
+function answerForm(eventId, ev, name, current) {
+  const editing = Array.isArray(current);
   view(`<section class="solo">
     ${ticket(ev, `<div class="result-msg">
-        <p><b>${esc(name)}，報名前請回答</b></p>
+        <p><b>${esc(name)}，${editing ? '修改你的回答' : '報名前請回答'}</b></p>
         <p class="muted" style="margin-bottom:14px">回答會顯示在群組的接龍名單上。</p>
         ${questionFields(ev)}
-        <button id="f-go" class="btn send" style="margin-top:6px">送出報名</button>
+        <button id="f-go" class="btn send" style="margin-top:6px">${editing ? '儲存回答' : '送出報名'}</button>
       </div>`)}
   </section>`);
-  const btn = $('f-go');
+  if (editing) current.forEach((v, i) => { const el = document.querySelector(`[data-ans="${i}"]`); if (el) el.value = v || ''; });
+  const btn = $('f-go'), label = btn.textContent;
   btn.onclick = async () => {
     btn.disabled = true; btn.textContent = '送出中';
-    try { showResult(await api('register', { eventId, answers: collectAnswers(ev) }), eventId); }
-    catch (e) { toast(e.message); btn.disabled = false; btn.textContent = '送出報名'; }
+    try { showResult(await api(editing ? 'updateAnswers' : 'register', { eventId, answers: collectAnswers(ev) }), eventId); }
+    catch (e) { toast(e.message); btn.disabled = false; btn.textContent = label; }
   };
 }
 

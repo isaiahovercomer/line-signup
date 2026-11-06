@@ -53,6 +53,7 @@ function doPost(e) {
         case 'register':     out = register(user, req.eventId, req.answers); break;
         case 'bind':         out = bind(user, req.eventId, req.name, req.phone, req.answers); break;
         case 'cancel':       out = cancel(user, req.eventId); break;
+        case 'updateAnswers': out = updateAnswers(user, req.eventId, req.answers); break;
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
@@ -379,15 +380,40 @@ function register(user, eventId, answers) {
     if (state !== 'open') return { ok: true, status: state, name, event: withStats(ev, log) };
     if (ev.questions.length && !Array.isArray(answers)) return { ok: true, status: 'need_answers', name, event: withStats(ev, log) };
 
-    const ans = ev.questions.map((q, i) => {
-      const a = String((answers || [])[i] || '').trim().slice(0, 100);
-      return q.options.length && !q.options.includes(a) ? '' : a; // 下拉選單只收選項裡的答案
-    });
-    const readable = ev.questions.map((q, i) => ans[i] ? q.q.replace(/[？?]\s*$/, '') + '：' + ans[i] : '').filter(Boolean).join('｜');
+    const { ans, readable } = cleanAnswers(ev, answers);
     const entry = [new Date(), ev.id, ev.title, name, user.displayName, user.userId, readable, JSON.stringify(ans)];
     sheet(SH.LOG).appendRow(entry);
     log.push(entry);
     return { ok: true, status: 'registered', name, event: withStats(ev, log), names: lines() };
+  });
+}
+
+/** 依活動問題整理回答：下拉選單只收選項裡的答案；readable 是給試算表看的「我可以預備：三杯雞｜所屬大區：10大區」 */
+function cleanAnswers(ev, answers) {
+  const ans = ev.questions.map((q, i) => {
+    const a = String((answers || [])[i] || '').trim().slice(0, 100);
+    return q.options.length && !q.options.includes(a) ? '' : a;
+  });
+  const readable = ev.questions.map((q, i) => ans[i] ? q.q.replace(/[？?]\s*$/, '') + '：' + ans[i] : '').filter(Boolean).join('｜');
+  return { ans, readable };
+}
+
+/** 修改自己的回答：報名順序與時間不變 */
+function updateAnswers(user, eventId, answers) {
+  return withLock(() => {
+    const ev = getEvent(eventId);
+    if (!ev) throw new Error('找不到這個活動，可能已經被刪除');
+    const sh = sheet(SH.LOG);
+    const data = sh.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][1]) === ev.id && String(data[i][5]) === user.userId) {
+        const { ans, readable } = cleanAnswers(ev, answers);
+        sh.getRange(i + 1, 7, 1, 2).setValues([[readable, JSON.stringify(ans)]]);
+        const log = logOf(ev.id);
+        return { ok: true, status: 'updated', name: String(data[i][3]), event: withStats(ev, log), names: log.map(rollLine) };
+      }
+    }
+    return { ok: true, status: 'not_registered', event: withStats(ev) };
   });
 }
 
