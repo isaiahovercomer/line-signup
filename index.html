@@ -175,6 +175,17 @@
   .tones button { border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 9px 2px 7px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 13px; color: var(--ink); cursor: pointer; }
   .tones i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--sw) 0 58%, var(--sw2) 58%); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); }
   .tones button[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); font-weight: 700; }
+  .list-head { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 12px; color: var(--ink-2); font-size: 14px; }
+  .list-acts { display: flex; gap: 8px; }
+  .list-acts .btn.small { margin: 0; }
+  .stubs.selecting .stub-card .info { position: relative; padding-left: 50px; }
+  .stub-card .check { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--rule); background: var(--paper); }
+  .stub-card[aria-checked="true"] { box-shadow: 0 0 0 2px var(--stamp); }
+  .stub-card[aria-checked="true"] .check { background: var(--stamp); border-color: var(--stamp); }
+  .stub-card[aria-checked="true"] .check::after { content: ""; position: absolute; left: 7px; top: 3px; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+  .btn.danger-fill { background: var(--stamp); color: #fff; }
+  .btn.danger-fill.armed { background: #8E2A20; }
+  .btn.danger-fill:disabled { background: var(--rule); color: var(--ink-2); opacity: 1; }
   .stub-card { background: var(--paper); border-radius: 14px; display: grid; grid-template-columns: 1fr auto; overflow: hidden; border: 0; padding: 0; text-align: left; width: 100%; cursor: pointer; }
   .stub-card .info { padding: 14px 16px; min-width: 0; }
   .stub-card .t { font-family: var(--serif); font-weight: 900; font-size: 17px; line-height: 1.4; word-break: break-word; }
@@ -414,6 +425,7 @@ async function demoApi(action, d) {
     }
     case 'updateEvent': { const e = find(d.eventId); Object.assign(e, d.event, { date: fmtRange(d.event.start, d.event.end) || d.event.date, capacity: +d.event.capacity || 0 }); return { ok: true, event: demoEvent(e) }; }
     case 'setOpen': { const e = find(d.eventId); e.open = d.open; return { ok: true, event: demoEvent(e) }; }
+    case 'deleteEvents': { const ids = new Set(d.eventIds); const logs = demo.events.filter(e => ids.has(e.id)).reduce((n, e) => n + (demo.log[e.id] || []).length, 0); const before = demo.events.length; demo.events = demo.events.filter(e => !ids.has(e.id)); return { ok: true, events: before - demo.events.length, logs }; }
     case 'deleteEvent': { const n = (demo.log[d.eventId] || []).length; demo.events = demo.events.filter(e => e.id !== d.eventId); return { ok: true, removed: n }; }
     case 'listMembers': return { ok: true, members: demoMembers() };
     case 'addMember': {
@@ -834,7 +846,7 @@ function render() {
     <div id="panel"></div>
     <footer class="page-foot">${isStandalone() ? '' : '<a class="mydata-link" href="#" id="install-link">安裝到手機桌面</a>'}${myDataLink()}</footer>
     ${dock}`);
-  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; render(); });
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; SELECTING = false; SELECTED.clear(); render(); });
   $('help').onclick = () => startTour(TOUR_STEPS);
   if ($('install-link')) $('install-link').onclick = e => { e.preventDefault(); startInstall(); };
   if (TAB === 'new') renderCompose();
@@ -1096,23 +1108,72 @@ async function createAndSend() {
 }
 
 /* ---------- 已發布 ---------- */
+/* 批次選取：按「選取」後，點活動是勾選，底部可一次刪除 */
+let SELECTING = false;
+const SELECTED = new Set();
+
 function renderSent() {
   const panel = $('panel');
   if (!EVENTS.length) {
+    SELECTING = false; SELECTED.clear();
     panel.innerHTML = `<div class="empty"><p>還沒有發布過活動。</p><button class="btn send" id="go-new">建立第一個活動</button></div>`;
     $('go-new').onclick = () => { TAB = 'new'; render(); };
     return;
   }
-  panel.innerHTML = `<div class="stubs">${EVENTS.map(e => `
-    <button class="stub-card" data-open="${esc(e.id)}" style="border-left: 6px solid ${themeOf(e).btn}">
-      <div class="info">
+  [...SELECTED].forEach(id => { if (!EVENTS.some(e => e.id === id)) SELECTED.delete(id); });
+  const allOn = SELECTED.size === EVENTS.length;
+  panel.innerHTML = `
+    <div class="list-head">
+      <span>${SELECTING ? `已選 ${SELECTED.size} 個` : `${EVENTS.length} 個活動`}</span>
+      <span class="list-acts">
+        ${SELECTING ? `<button class="btn plain small" id="sel-all">${allOn ? '全部取消' : '全選'}</button>` : ''}
+        <button class="btn plain small" id="sel-toggle">${SELECTING ? '完成' : '選取'}</button>
+      </span>
+    </div>
+    <div class="stubs ${SELECTING ? 'selecting' : ''}">${EVENTS.map(e => `
+    <button class="stub-card" data-open="${esc(e.id)}" ${SELECTING ? `role="checkbox" aria-checked="${SELECTED.has(e.id)}"` : ''} style="border-left: 6px solid ${themeOf(e).btn}">
+      <div class="info">${SELECTING ? '<span class="check" aria-hidden="true"></span>' : ''}
         <div class="t">${esc(e.title)}</div>
         <div class="d">${esc(e.date || '未填時間')}${ME.isAdmin && e.creator ? `　由 ${esc(e.creator)} 建立` : ''}</div>
         ${stateTag(e.state)}
       </div>
       <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人登記'}</small></div>
     </button>`).join('')}</div>`;
-  panel.querySelectorAll('[data-open]').forEach(b => b.onclick = () => go({ view: 'detail', id: b.dataset.open }));
+  panel.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
+    if (!SELECTING) return go({ view: 'detail', id: b.dataset.open });
+    const id = b.dataset.open;
+    SELECTED.has(id) ? SELECTED.delete(id) : SELECTED.add(id);
+    renderSent();
+  });
+  $('sel-toggle').onclick = () => { SELECTING = !SELECTING; SELECTED.clear(); renderSent(); };
+  if ($('sel-all')) $('sel-all').onclick = () => { if (allOn) SELECTED.clear(); else EVENTS.forEach(e => SELECTED.add(e.id)); renderSent(); };
+
+  // 底部的批次刪除按鈕
+  const old = $('bulk-dock'); if (old) old.remove();
+  if (!SELECTING) return;
+  const dock = document.createElement('div');
+  dock.className = 'dock'; dock.id = 'bulk-dock';
+  dock.innerHTML = `<div class="inner"><button class="btn danger-fill" id="bulk-del" ${SELECTED.size ? '' : 'disabled'}>刪除所選活動（${SELECTED.size}）</button></div>`;
+  $app.appendChild(dock);
+  const del = $('bulk-del');
+  del.onclick = async () => {
+    const ids = [...SELECTED];
+    const regs = EVENTS.filter(e => SELECTED.has(e.id)).reduce((n, e) => n + (e.count || 0), 0);
+    if (!del.classList.contains('armed')) {
+      del.classList.add('armed');
+      del.textContent = `確定刪除 ${ids.length} 個活動？${regs ? `共 ${regs} 筆登記也會刪除，` : ''}再按一次`;
+      setTimeout(() => { if (del.isConnected && !del.disabled) { del.classList.remove('armed'); del.textContent = `刪除所選活動（${SELECTED.size}）`; } }, 4000);
+      return;
+    }
+    del.disabled = true; del.textContent = '刪除中';
+    try {
+      const r = await api('deleteEvents', { eventIds: ids });
+      toast(`已刪除 ${r.events} 個活動${r.logs ? `、${r.logs} 筆登記` : ''}`);
+      SELECTING = false; SELECTED.clear();
+      await refreshEvents();
+      render();
+    } catch (e) { toast(e.message); del.disabled = false; del.classList.remove('armed'); del.textContent = `刪除所選活動（${SELECTED.size}）`; }
+  };
 }
 
 /* ---------- 活動詳情 ---------- */
@@ -1354,7 +1415,7 @@ function armThen(btn, label, fn) {
    之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。
    看過舊版的人不會重看整套，而是跳出「新功能：○○　看介紹」，只介紹新加的步驟。 */
 const TOUR_KEY = 'signup.tour';
-const TOUR_VERSION = 5; // 2：加入圖卡色調　3：我的個人資料　4：安裝到手機桌面　5：從過去的活動套用
+const TOUR_VERSION = 6; // 2：加入圖卡色調　3：我的個人資料　4：安裝到手機桌面　5：從過去的活動套用　6：批次刪除
 const q1 = sel => document.querySelector(sel);
 const groupOf = sel => { const el = q1(sel); return el && (el.closest('.group') || el.closest('.field')); };
 const TOUR_STEPS = [
@@ -1376,6 +1437,8 @@ const TOUR_STEPS = [
     text: '填好後按這裡，從 LINE 的選單勾選群組或朋友，可以一次發給好幾個。' },
   { since: 1, tab: 'new', target: () => q1('[data-tab=sent]'), title: '已發布的活動',
     text: '發出去的活動都在這裡，你只會看到自己建立的。' },
+  { since: 6, tab: 'sent', target: () => q1('#sel-toggle'), title: '批次刪除活動',
+    text: '按「選取」後點活動來勾選，也可以「全選」，再按底部的「刪除所選活動」一次刪掉。刪除要按兩次確認，無法復原。' },
   { since: 1, tab: 'sent', target: () => q1('.stub-card') || q1('#panel .empty'), title: '活動詳情與統計',
     text: '點進活動可以看登記名單、依大區或會所分組的統計、複製名單，也能編輯、停止登記或刪除活動。' },
   { since: 1, admin: true, tab: 'new', target: () => q1('[data-tab=members]'), title: '成員名單',

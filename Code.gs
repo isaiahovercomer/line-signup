@@ -67,6 +67,7 @@ function doPost(e) {
         case 'eventDetail':  own(); out = { ok: true, ...eventDetail(req.eventId) }; break;
         case 'setOpen':      own(); out = { ok: true, event: setOpen(req.eventId, !!req.open) }; break;
         case 'deleteEvent':  own(); out = { ok: true, removed: deleteEvent(req.eventId) }; break;
+        case 'deleteEvents': out = { ok: true, ...deleteEvents(user, req.eventIds) }; break;
         case 'listMembers':  admin(); out = { ok: true, members: listMembers() }; break;
         case 'addMember':    admin(); out = { ok: true, members: addMember(req.name, req.phone) }; break;
         case 'unbindMember': admin(); out = { ok: true, members: unbindMember(req.row, req.name) }; break;
@@ -336,6 +337,25 @@ function eventDetail(id) {
       name: String(r[3]), lineName: String(r[4] || ''), answers: answersOf(r),
     })),
   };
+}
+
+/** 一次刪除多個活動與它們的登記紀錄（無法復原）。先逐一確認權限，全部通過才刪 */
+function deleteEvents(user, ids) {
+  ids = [...new Set((Array.isArray(ids) ? ids : []).map(String))].slice(0, 200);
+  if (!ids.length) throw new Error('沒有選取活動');
+  ids.forEach(id => requireOwner(user, id));
+  const want = new Set(ids);
+  return withLock(() => {
+    const delRows = (name, col) => {
+      const sh = sheet(name), data = sh.getDataRange().getValues();
+      let n = 0;
+      for (let i = data.length - 1; i >= 1; i--) if (want.has(String(data[i][col]))) { sh.deleteRow(i + 1); n++; }
+      return n;
+    };
+    const logs = delRows(SH.LOG, 1);
+    const events = delRows(SH.EVENTS, EV.ID);
+    return { events, logs };
+  });
 }
 
 /** 刪除活動與它的報名紀錄（無法復原）；回傳刪掉幾筆報名 */
