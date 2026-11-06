@@ -136,6 +136,19 @@
   .roll .nm small { display: block; color: var(--ink-2); font-size: 12px; font-weight: 400; }
   .roll time { color: var(--ink-2); font-size: 13px; }
   .roll .nm small.ans { color: var(--ink); font-size: 14px; margin-top: 2px; }
+  .stats { display: grid; gap: 12px; }
+  .stat { background: var(--paper); border-radius: 14px; padding: 14px 16px; }
+  .stat h3 { font-size: 16px; margin: 0; }
+  .stat .meta { color: var(--ink-2); font-size: 13px; margin: 2px 0 0; }
+  .stat .sum { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 0; }
+  .stat .sum b { font-family: var(--serif); font-size: 34px; line-height: 1; }
+  .stat .sum span { color: var(--ink-2); font-size: 14px; }
+  .stat ul { list-style: none; margin: 10px 0 0; padding: 0; }
+  .stat li { display: grid; grid-template-columns: minmax(5em, auto) 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--sky); align-items: baseline; }
+  .stat li:first-child { border-top: 0; }
+  .stat .lbl { font-weight: 700; word-break: break-word; }
+  .stat .lbl em { font-style: normal; color: var(--stamp); margin-left: 6px; font-size: 13px; }
+  .stat .who { color: var(--ink-2); font-size: 14px; word-break: break-word; }
 
   /* ---------- 成員 ---------- */
   .add-member { background: var(--paper); border-radius: 14px; padding: 16px; margin-bottom: 18px; }
@@ -235,7 +248,7 @@ const demo = {
     { id: 'E2', title: '十一月讀書會', start: '2026-11-01 14:00', end: '', date: '11/1（六）14:00', place: '活動中心二樓', desc: '', image: '', button: '我要參加', open: true, capacity: 0, deadline: '2026-10-31 23:59', questions: [] },
   ],
   log: {
-    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['甜點', '']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3']]],
+    E1: [['11/5 20:14', '王小明', '小明', ['水果', '2']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3']]],
     E2: [['10/28 09:10', '林志豪', '志豪', []]],
   },
   members: [
@@ -697,6 +710,7 @@ async function renderDetail(id) {
       <button class="btn send" id="share">發送到群組</button>
       <button class="btn plain" id="toggle">${ev.open ? '停止報名' : '重新開放'}</button>
     </div>
+    ${statsHtml(ev, list)}
     <div class="roll-head"><h2>報名名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
     ${list.length ? `<ol class="roll">${list.map(a => `
         <li><span class="nm">${esc(a.name)}${answerText(ev, a) ? `<small class="ans">${esc(answerText(ev, a))}</small>` : ''}${a.lineName && a.lineName !== a.name ? `<small>LINE：${esc(a.lineName)}</small>` : ''}</span><time>${esc(a.time)}</time></li>`).join('')}</ol>`
@@ -713,6 +727,28 @@ async function renderDetail(id) {
   if (list.length) $('copy').onclick = () => copyText(
     `${ev.title}\n報名 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${[a.name].concat((a.answers || []).filter(Boolean)).join('，')}`).join('\n'),
     '已複製名單');
+}
+
+/** 依每個問題整理回答：全是數字就加總，其他相同答案歸在一起 */
+function statsHtml(ev, list) {
+  const qs = ev.questions || [];
+  if (!qs.length || !list.length) return '';
+  const num = v => { const m = /^\s*(\d+(?:\.\d+)?)\s*(人|位|個|份)?\s*$/.exec(v); return m ? +m[1] : null; };
+  const cards = qs.map((q, i) => {
+    const filled = list.map(a => ({ name: a.name, v: String((a.answers || [])[i] || '').trim() })).filter(x => x.v);
+    const head = `<h3>${esc(q)}</h3><p class="meta">已回答 ${filled.length}／${list.length} 人</p>`;
+    if (!filled.length) return `<div class="stat">${head}<p class="meta">還沒有人回答。</p></div>`;
+    if (filled.every(x => num(x.v) !== null)) {
+      const sum = filled.reduce((s, x) => s + num(x.v), 0);
+      return `<div class="stat">${head}<p class="sum"><b>${+sum.toFixed(2)}</b><span>合計</span></p></div>`;
+    }
+    const groups = new Map();
+    filled.forEach(x => { const k = x.v.toLowerCase(); if (!groups.has(k)) groups.set(k, { label: x.v, names: [] }); groups.get(k).names.push(x.name); });
+    const rows = [...groups.values()].sort((a, b) => b.names.length - a.names.length).map(g => `
+      <li><span class="lbl">${esc(g.label)}${g.names.length > 1 ? `<em>×${g.names.length}</em>` : ''}</span><span class="who">${g.names.map(esc).join('、')}</span></li>`).join('');
+    return `<div class="stat">${head}<ul>${rows}</ul></div>`;
+  }).join('');
+  return `<div class="roll-head"><h2>統計</h2></div><div class="stats">${cards}</div>`;
 }
 
 /** 名單上回答的顯示：「我可以預備：三杯雞｜同行人數：3」 */
