@@ -62,7 +62,8 @@ function doPost(e) {
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
-        case 'listEvents':   out = { ok: true, events: listEvents(user) }; break;
+        case 'listEvents':   out = { ok: true, events: listEvents(user), templates: listTemplates(user) }; break;
+        case 'deleteTemplate': out = { ok: true, templates: deleteTemplate(user, req.title) }; break;
         case 'updateEvent':  own(); out = { ok: true, event: updateEvent(req.eventId, req.event || {}) }; break;
         case 'eventDetail':  own(); out = { ok: true, ...eventDetail(req.eventId) }; break;
         case 'setOpen':      own(); out = { ok: true, event: setOpen(req.eventId, !!req.open) }; break;
@@ -306,6 +307,56 @@ function updateEvent(id, input) {
   });
 }
 
+/* ---------- 範本：活動刪除後仍保留內容（不含任何登記者資料），可一鍵套用 ----------
+   存在隱藏的「範本」工作表，同一個建立者、同一個活動名稱只留最新一筆。 */
+const TEMPLATE_SHEET = '範本';
+
+function templateSheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(TEMPLATE_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(TEMPLATE_SHEET);
+    sh.appendRow(['建立者 userId', '活動名稱', '內容', '更新時間']);
+    sh.setFrozenRows(1);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function saveTemplates(eventRows) {
+  if (!eventRows.length) return;
+  const sh = templateSheet();
+  const data = sh.getDataRange().getValues();
+  eventRows.forEach(r => {
+    const uid = creatorOf(r), ev = rowToEvent(r);
+    if (!uid || !ev.title) return;
+    const body = JSON.stringify({ title: ev.title, place: ev.place, desc: ev.desc, image: ev.image, button: ev.button,
+      capacity: ev.capacity, questions: ev.questions, theme: ev.theme });
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0]) === uid && String(data[i][1]) === ev.title) { sh.deleteRow(i + 1); data.splice(i, 1); }
+    }
+    sh.appendRow([uid, ev.title, body, new Date()]);
+    data.push([uid, ev.title, body, new Date()]);
+  });
+}
+
+function listTemplates(user) {
+  templateSheet();
+  return rows(TEMPLATE_SHEET)
+    .filter(r => String(r[0]) === user.userId)
+    .sort((a, b) => (b[3] instanceof Date ? b[3] : 0) - (a[3] instanceof Date ? a[3] : 0))
+    .slice(0, 20)
+    .map(r => Object.assign(parseJson(r[2], {}) || {}, { saved: true, title: String(r[1]) }));
+}
+
+function deleteTemplate(user, title) {
+  withLock(() => {
+    const sh = templateSheet(), data = sh.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) if (String(data[i][0]) === user.userId && String(data[i][1]) === String(title)) sh.deleteRow(i + 1);
+  });
+  return listTemplates(user);
+}
+
 /** 管理員看到全部活動，其他人只看到自己建立的 */
 function listEvents(user) {
   const log = rows(SH.LOG);
@@ -352,6 +403,7 @@ function deleteEvents(user, ids) {
       for (let i = data.length - 1; i >= 1; i--) if (want.has(String(data[i][col]))) { sh.deleteRow(i + 1); n++; }
       return n;
     };
+    saveTemplates(rows(SH.EVENTS).filter(r => want.has(String(r[EV.ID])))); // 先存成範本，之後還能一鍵套用
     const logs = delRows(SH.LOG, 1);
     const events = delRows(SH.EVENTS, EV.ID);
     return { events, logs };
@@ -362,6 +414,7 @@ function deleteEvents(user, ids) {
 function deleteEvent(id) {
   return withLock(() => {
     const f = findEventRow(id);
+    saveTemplates([f.row]); // 先存成範本，之後還能一鍵套用
     const log = sheet(SH.LOG);
     const data = log.getDataRange().getValues();
     let removed = 0;
@@ -495,6 +548,7 @@ function deleteMyData(user) {
     roster = del(SH.ROSTER, r => String(r[2]).trim() === user.userId);
     logs = del(SH.LOG, r => String(r[5]) === user.userId);
     sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId); // 通行證也一併刪除
+    templateSheet(); del(TEMPLATE_SHEET, r => String(r[0]) === user.userId); // 自己建立的範本也一併刪除
     return { roster, logs };
   });
 }
