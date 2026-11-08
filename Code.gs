@@ -6,19 +6,20 @@
 const CONFIG = {
   CHANNEL_ID: '2012412693', // LINE Developers → 你的 LINE Login channel → Basic settings
   IMAGE_FOLDER: 'LINE 活動圖片', // 上傳的活動圖片會存在你雲端硬碟的這個資料夾
+  LIFF_ID: '2012412693-a7phfbWa', // 提醒信裡的連結
 };
 
 const SH = { ROSTER: '名單', EVENTS: '活動', LOG: '報名紀錄', PUBLISHERS: '發布者' };
 
 const HEADERS = {
   '名單': ['姓名', '手機', 'LINE userId', 'LINE名稱'],
-  '活動': ['活動代碼', '活動名稱', '日期時間', '地點', '說明', '圖片網址', '按鈕文字', '開放報名', '建立者', '建立時間', '人數上限', '截止時間', '開始時間', '結束時間', '問題', '色調'],
+  '活動': ['活動代碼', '活動名稱', '日期時間', '地點', '說明', '圖片網址', '按鈕文字', '開放報名', '建立者', '建立時間', '人數上限', '截止時間', '開始時間', '結束時間', '問題', '色調', '提醒時段', '已發提醒', '已寄通知'],
   '報名紀錄': ['時間', '活動代碼', '活動名稱', '姓名', 'LINE名稱', 'LINE userId', '回答', '回答資料'],
   '發布者': ['LINE userId', '名稱', '備註'],
 };
 
 // 「活動」工作表的欄位位置（從 0 開始）
-const EV = { ID: 0, TITLE: 1, DATE: 2, PLACE: 3, DESC: 4, IMAGE: 5, BUTTON: 6, OPEN: 7, CREATOR: 8, CREATED: 9, CAP: 10, DEADLINE: 11, START: 12, END: 13, QUESTIONS: 14, THEME: 15 };
+const EV = { ID: 0, TITLE: 1, DATE: 2, PLACE: 3, DESC: 4, IMAGE: 5, BUTTON: 6, OPEN: 7, CREATOR: 8, CREATED: 9, CAP: 10, DEADLINE: 11, START: 12, END: 13, QUESTIONS: 14, THEME: 15, REMIND: 16, REMINDED: 17, NOTIFIED: 18 };
 
 /** 建立工作表並補齊標題列；更新程式後再執行一次也安全（第一次會要求雲端硬碟權限，用來存上傳的圖片） */
 function setup() {
@@ -32,6 +33,7 @@ function setup() {
   ss.getSheetByName(SH.ROSTER).getRange('B:B').setNumberFormat('@');   // 手機保留開頭的 0
   ['C:C', 'L:L', 'M:M', 'N:N'].forEach(c => ss.getSheetByName(SH.EVENTS).getRange(c).setNumberFormat('@')); // 時間存成文字
   imageFolder();
+  ensureReminderTrigger();
 }
 
 function doGet() {
@@ -62,7 +64,9 @@ function doPost(e) {
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
-        case 'listEvents':   out = { ok: true, events: listEvents(user), templates: listTemplates(user) }; break;
+        case 'listEvents':   out = { ok: true, events: listEvents(user), templates: listTemplates(user), notifyEmail: getNotifyEmail(user) }; break;
+        case 'setNotifyEmail': out = { ok: true, notifyEmail: setNotifyEmail(user, req.email) }; break;
+        case 'markReminded': own(); out = { ok: true, event: markReminded(req.eventId, req.offsets) }; break;
         case 'deleteTemplate': out = { ok: true, templates: deleteTemplate(user, req.title) }; break;
         case 'updateEvent':  own(); out = { ok: true, event: updateEvent(req.eventId, req.event || {}) }; break;
         case 'eventDetail':  own(); out = { ok: true, ...eventDetail(req.eventId) }; break;
@@ -194,6 +198,13 @@ function cleanQuestions(list) {
 const THEMES = ['classic', 'feast', 'prayer', 'gospel', 'youth', 'kids', 'study', 'service'];
 function cleanTheme(v) { v = String(v || '').trim(); return THEMES.includes(v) ? v : 'classic'; }
 
+/** 提醒時段：活動開始前幾小時（7 天、24 小時、1 小時），存成「168,24,1」 */
+const REMIND_HOURS = [168, 24, 1];
+function cleanRemind(v) {
+  const list = Array.isArray(v) ? v : String(v || '').split(',');
+  return REMIND_HOURS.filter(h => list.map(Number).includes(h));
+}
+
 function rowToEvent(r) {
   return {
     id: String(r[EV.ID]), title: String(r[EV.TITLE]),
@@ -204,6 +215,7 @@ function rowToEvent(r) {
     start: normTime(r[EV.START]), end: normTime(r[EV.END]),
     questions: cleanQuestions(parseJson(r[EV.QUESTIONS], [])),
     theme: cleanTheme(r[EV.THEME]),
+    remind: cleanRemind(r[EV.REMIND]), reminded: cleanRemind(r[EV.REMINDED]),
   };
 }
 
@@ -242,6 +254,7 @@ function cleanEventInput(ev) {
     deadline: normTime(ev.deadline),
     questions,
     theme: cleanTheme(ev.theme),
+    remind: start ? cleanRemind(ev.remind) : [],
   };
 }
 
@@ -291,7 +304,7 @@ function createEvent(user, input) {
   const id = 'E' + fmt(new Date(), 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
   const row = [id, ev.title, ev.date, ev.place, ev.desc, ev.image, ev.button, true,
     user.displayName + ' (' + user.userId + ')', new Date(), ev.capacity || '', ev.deadline,
-    ev.start, ev.end, JSON.stringify(ev.questions), ev.theme];
+    ev.start, ev.end, JSON.stringify(ev.questions), ev.theme, ev.remind.join(','), '', ''];
   sheet(SH.EVENTS).appendRow(row);
   return withStats(rowToEvent(row), []);
 }
@@ -303,6 +316,9 @@ function updateEvent(id, input) {
     const sh = sheet(SH.EVENTS);
     sh.getRange(f.index, EV.TITLE + 1, 1, 6).setValues([[ev.title, ev.date, ev.place, ev.desc, ev.image, ev.button]]);
     sh.getRange(f.index, EV.CAP + 1, 1, 6).setValues([[ev.capacity || '', ev.deadline, ev.start, ev.end, JSON.stringify(ev.questions), ev.theme]]);
+    sh.getRange(f.index, EV.REMIND + 1).setValue(ev.remind.join(','));
+    // 開始時間改了，提醒重新算
+    if (normTime(f.row[EV.START]) !== ev.start) sh.getRange(f.index, EV.REMINDED + 1, 1, 2).setValues([['', '']]);
     return withStats(getEvent(id));
   });
 }
@@ -549,6 +565,7 @@ function deleteMyData(user) {
     logs = del(SH.LOG, r => String(r[5]) === user.userId);
     sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId); // 通行證也一併刪除
     templateSheet(); del(TEMPLATE_SHEET, r => String(r[0]) === user.userId); // 自己建立的範本也一併刪除
+    notifySheet(); del(NOTIFY_SHEET, r => String(r[0]) === user.userId);      // 提醒通知信箱也一併刪除
     return { roster, logs };
   });
 }
@@ -627,4 +644,96 @@ function bind(user, eventId, name, phone, answers) {
     return null;
   });
   return result || register(user, eventId, answers);
+}
+
+/* ---------- 活動提醒 ----------
+   個人 LINE 帳號不能由程式自動發到群組，所以做法是：
+   到了提醒時間 → 寄 Email 通知建立者（有留信箱的話），平台上也會標示「該發提醒了」
+   → 建立者按一下「發提醒到群組」，用自己的帳號把提醒卡發出去。
+   remindTick 由時間觸發器每 15 分鐘執行一次（setup() 會自動建立）。 */
+const NOTIFY_SHEET = '通知信箱';
+
+function notifySheet() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(NOTIFY_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(NOTIFY_SHEET);
+    sh.appendRow(['LINE userId', 'Email', '更新時間']);
+    sh.setFrozenRows(1);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function getNotifyEmail(user) {
+  notifySheet();
+  const r = rows(NOTIFY_SHEET).find(r => String(r[0]) === user.userId);
+  return r ? String(r[1]) : '';
+}
+
+function setNotifyEmail(user, email) {
+  email = String(email || '').trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Email 格式不對，請再檢查一次');
+  return withLock(() => {
+    const sh = notifySheet(), data = sh.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) if (String(data[i][0]) === user.userId) sh.deleteRow(i + 1);
+    if (email) sh.appendRow([user.userId, email, new Date()]);
+    return email;
+  });
+}
+
+/** 建立者按了「發提醒到群組」：記下已經發過的時段 */
+function markReminded(id, offsets) {
+  return withLock(() => {
+    const f = findEventRow(id);
+    const done = cleanRemind(f.row[EV.REMINDED]).concat(cleanRemind(offsets));
+    sheet(SH.EVENTS).getRange(f.index, EV.REMINDED + 1).setValue(cleanRemind(done).join(','));
+    return withStats(getEvent(id));
+  });
+}
+
+/** 「還有 7 天」「明天 18:00 開始」「45 分鐘後開始」 */
+function untilText(start) {
+  const ms = start - new Date();
+  if (ms < 90 * 60000) return Math.max(1, Math.round(ms / 60000)) + ' 分鐘後開始';
+  const day = d => fmt(d, 'yyyyMMdd');
+  const tomorrow = new Date(Date.now() + 86400000);
+  if (day(start) === day(new Date())) return '今天 ' + fmt(start, 'HH:mm') + ' 開始';
+  if (day(start) === day(tomorrow)) return '明天 ' + fmt(start, 'HH:mm') + ' 開始';
+  if (ms < 48 * 3600000) return Math.round(ms / 3600000) + ' 小時後開始';
+  return '還有 ' + Math.round(ms / 86400000) + ' 天';
+}
+
+function remindTick() {
+  const sh = sheet(SH.EVENTS), data = sh.getDataRange().getValues();
+  const now = new Date();
+  for (let i = 1; i < data.length; i++) {
+    const r = data[i], ev = rowToEvent(r);
+    const start = parseTime(ev.start);
+    if (!start || start <= now || !ev.remind.length) continue;
+    const due = ev.remind.filter(h => now >= new Date(start.getTime() - h * 3600000));
+    const notified = cleanRemind(r[EV.NOTIFIED]);
+    if (!due.some(h => !notified.includes(h) && !ev.reminded.includes(h))) continue;
+    sh.getRange(i + 1, EV.NOTIFIED + 1).setValue(cleanRemind(notified.concat(due)).join(','));
+    const to = getNotifyEmail({ userId: creatorOf(r) });
+    if (!to) continue;
+    const when = untilText(start);
+    const link = 'https://liff.line.me/' + CONFIG.LIFF_ID + '?remind=' + encodeURIComponent(ev.id);
+    const count = logOf(ev.id).length;
+    try {
+      MailApp.sendEmail({
+        to, name: 'LINE簡易活動登記',
+        subject: '⏰ 該發提醒了：' + ev.title + '（' + when + '）',
+        htmlBody: '<p>「<b>' + ev.title + '</b>」' + when + '。</p>'
+          + '<p>時間：' + (ev.date || '') + (ev.place ? '<br>地點：' + ev.place : '') + '<br>目前登記：' + count + ' 人' + (ev.capacity ? '／名額 ' + ev.capacity : '') + '</p>'
+          + '<p><a href="' + link + '" style="display:inline-block;background:#2F3343;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:bold">打開平台，發提醒到群組</a></p>'
+          + '<p style="color:#888;font-size:12px">在手機上點按鈕會開啟 LINE，選群組就能送出提醒卡。不想再收到這類信，可在平台「新活動 → 提醒」清空 Email。</p>',
+      });
+    } catch (e) { console.warn('寄送提醒失敗：' + e.message); }
+  }
+}
+
+function ensureReminderTrigger() {
+  if (ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'remindTick')) return;
+  ScriptApp.newTrigger('remindTick').timeBased().everyMinutes(15).create();
 }

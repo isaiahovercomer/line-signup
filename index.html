@@ -182,6 +182,23 @@
   .stub-card.past { filter: grayscale(1); opacity: .62; background: var(--sky-2); }
   .stub-card.past[aria-checked="true"] { opacity: .9; }
   .state.over { background: var(--ink-2); color: var(--paper); }
+  .state.remind { background: var(--stamp); color: #fff; }
+  .remind-pick .r-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .remind-pick .r-opts button { border: 1.5px solid var(--rule); background: transparent; border-radius: 999px; padding: 7px 14px; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .remind-pick .r-opts button[aria-pressed=true] { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
+  .remind-pick .r-opts button[aria-pressed=true]::before { content: '✓ '; }
+  .remind-pick .r-opts button:disabled { opacity: .45; cursor: not-allowed; }
+  .remind-mail { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--gold-soft); }
+  .remind-mail .row { display: flex; gap: 8px; margin-top: 6px; }
+  .remind-mail input { flex: 1; min-width: 0; }
+  .remind-mail .btn.small { margin: 0; flex: none; }
+  .remind-box { margin: 14px 0 0; padding: 14px; border-radius: 14px; border: 1.5px solid var(--rule); }
+  .remind-box.due { border-color: var(--stamp); background: rgba(176, 58, 46, .06); }
+  .remind-box h3 { margin: 0 0 6px; font-size: 15px; }
+  .remind-box ul { list-style: none; margin: 0 0 10px; padding: 0; font-size: 14px; color: var(--ink-2); }
+  .remind-box li b { color: var(--ink); font-weight: 600; }
+  .remind-box .btn { margin: 0; width: 100%; }
+  .cleanup.due { border-color: var(--stamp); background: rgba(176, 58, 46, .06); }
   .tpl-wrap { position: relative; flex: none; scroll-snap-align: start; }
   .tpl small.saved { color: var(--gold-text); }
   .tpl-x { position: absolute; top: -6px; right: -6px; min-width: 24px; height: 24px; border-radius: 12px; border: 1.5px solid var(--rule); background: var(--paper); color: var(--ink-2); font-size: 14px; line-height: 1; padding: 0 6px; cursor: pointer; }
@@ -399,6 +416,7 @@ const demo = {
     E1: [['11/5 20:14', '王小明', '小明', ['水果', '2', '3大區']], ['11/5 20:31', '陳怡君', 'Yi-Chun', ['水果', '1', '3大區']], ['11/6 07:02', '簡晨光', '晨光', ['三杯雞', '3', '12大區']], ['11/6 09:12', '林志豪', '志豪', ['三杯雞', '2']]],
     E2: [['10/28 09:10', '林志豪', '志豪', []]],
   },
+  notifyEmail: '',
   templates: [{ saved: true, title: '週六河濱淨灘', place: '大稻埕碼頭', desc: '手套和夾子現場提供。', image: '', button: '我要登記', capacity: 30, questions: [], theme: 'gospel' }],
   members: [
     { name: '王小明', phone: '0912345678', bound: true, lineName: '小明' },
@@ -407,6 +425,15 @@ const demo = {
     { name: '林志豪', phone: '0933555777', bound: false, lineName: '' },
   ],
 };
+// 預覽用：一個明天開始、24 小時提醒已經到了的活動
+(() => {
+  const s = new Date(Date.now() + 20 * 3600000); s.setMinutes(0, 0, 0);
+  const p = n => String(n).padStart(2, '0');
+  const start = `${s.getFullYear()}-${p(s.getMonth() + 1)}-${p(s.getDate())} ${p(s.getHours())}:00`;
+  demo.events.splice(1, 0, { id: 'E3', title: '全召會禱告聚會', start, end: '', date: fmtRange(start, ''), place: '一會所大會堂', desc: '', image: '', button: '我要登記', open: true, capacity: 0, deadline: '', questions: [], theme: 'prayer', remind: [168, 24, 1], reminded: [168] });
+  demo.log.E3 = [['11/7 21:00', '王小明', '小明', []]];
+  demo.events[0].remind = [168, 24, 1];
+})();
 function demoEvent(e) {
   const count = (demo.log[e.id] || []).length;
   let state = 'open';
@@ -426,7 +453,9 @@ async function demoApi(action, d) {
   switch (action) {
     case 'me': return { ok: true, ...demo.me };
     case 'event': return { ok: true, event: demoEvent(find(d.eventId) || demo.events[0]) };
-    case 'listEvents': return { ok: true, events: demo.events.map(demoEvent), templates: demo.templates };
+    case 'listEvents': return { ok: true, events: demo.events.map(demoEvent), templates: demo.templates, notifyEmail: demo.notifyEmail };
+    case 'setNotifyEmail': demo.notifyEmail = String(d.email || '').trim(); return { ok: true, notifyEmail: demo.notifyEmail };
+    case 'markReminded': { const e = find(d.eventId); e.reminded = [...new Set([...(e.reminded || []), ...d.offsets])]; return { ok: true, event: demoEvent(e) }; }
     case 'deleteTemplate': demo.templates = demo.templates.filter(t => t.title !== d.title); return { ok: true, templates: demo.templates };
     case 'eventDetail': {
       const e = find(d.eventId);
@@ -821,7 +850,7 @@ function answerForm(eventId, ev, name, current) {
 /* ================= 發布者平台 ================= */
 let TEMPLATES = []; // 刪除後保留下來的活動範本
 let ME = null, EVENTS = [], MEMBERS = null, TAB = 'new', ROUTE = { view: 'tabs' };
-const blankDraft = () => ({ title: '', start: '', end: '', date: '', place: '', desc: '', image: '', button: '我要登記', capacity: '', deadline: '', questions: [], theme: randomTheme() });
+const blankDraft = () => ({ title: '', start: '', end: '', date: '', place: '', desc: '', image: '', button: '我要登記', capacity: '', deadline: '', questions: [], theme: randomTheme(), remind: [168, 24, 1] });
 let draft = blankDraft();
 let editDraft = null;
 
@@ -831,12 +860,14 @@ async function publisherFlow() {
   await refreshEvents();
   // 為了發送而去登入 LINE、回來後把剛才填的內容放回去
   try { const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (saved) { draft = { ...blankDraft(), ...saved }; localStorage.removeItem(DRAFT_KEY); setTimeout(() => toast('已登入，內容都還在，按「發送到 LINE 群組」繼續'), 300); } } catch (e) {}
+  const remindId = PARAMS.get('remind');
+  if (remindId && EVENTS.some(e => e.id === remindId)) { TAB = 'sent'; return go({ view: 'detail', id: remindId }); }
   render();
   if (!PARAMS.has('notour')) maybeStartTour();
 }
 
 async function refreshEvents() {
-  try { const r = await api('listEvents'); EVENTS = r.events; TEMPLATES = r.templates || []; } catch (e) { toast(e.message); }
+  try { const r = await api('listEvents'); EVENTS = r.events; TEMPLATES = r.templates || []; NOTIFY_EMAIL = r.notifyEmail || ''; } catch (e) { toast(e.message); }
 }
 
 function copyText(text, done) {
@@ -910,6 +941,13 @@ function eventForm(d) {
       </div>
       <div class="help">都可以留白。額滿或過了截止時間，登記會自動停止。</div>
     </div>
+    <div class="group remind-pick"><h2>活動前提醒</h2>
+      <div class="r-opts" role="group" aria-label="提醒時段">
+        ${REMIND_OPTS.map(([h, label]) => `<button type="button" data-rh="${h}" aria-pressed="${(d.remind || []).includes(h)}">${label}</button>`).join('')}
+      </div>
+      <div class="help" id="r-help"></div>
+      <div id="r-mail"></div>
+    </div>
     <div class="group"><h2>內容</h2>
       <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea></label>
       <div class="field"><span>圖片</span>
@@ -941,7 +979,68 @@ function bindEventForm(d) {
   document.querySelectorAll('[data-tone]').forEach(b => b.onclick = () => setTone(b.dataset.tone));
   $('tone-random').onclick = () => setTone(randomTheme(d.theme));
   drawQuestions(d);
+  document.querySelectorAll('[data-rh]').forEach(b => b.onclick = () => {
+    const h = +b.dataset.rh;
+    d.remind = (d.remind || []).includes(h) ? d.remind.filter(x => x !== h) : [...(d.remind || []), h];
+    drawRemind(d);
+  });
+  document.querySelectorAll('[data-k=start]').forEach(el => el.addEventListener('input', () => drawRemind(d)));
+  drawRemind(d);
   preview(d);
+}
+
+/* ---------- 活動前提醒 ----------
+   個人帳號不能自動發到群組：到了時間寄 Email 給建立者（平台也會標示），建立者按一下就把提醒卡發出去 */
+const REMIND_OPTS = [[168, '前 7 天'], [24, '前 24 小時'], [1, '前 1 小時']];
+const remindName = h => (REMIND_OPTS.find(x => x[0] === h) || [0, ''])[1];
+let NOTIFY_EMAIL = '';
+let editingMail = false;
+
+function drawRemind(d) {
+  const has = !!d.start, on = has && (d.remind || []).length;
+  document.querySelectorAll('[data-rh]').forEach(b => { b.disabled = !has; b.setAttribute('aria-pressed', String(has && d.remind.includes(+b.dataset.rh))); });
+  $('r-help').textContent = !has ? '先填開始時間，才能設定提醒。'
+    : on ? '到了時間會通知你，按一下就能把提醒卡發到群組。不用開著平台，通知會寄到你的 Email。'
+    : '不提醒。';
+  const box = $('r-mail');
+  if (!on) { box.innerHTML = ''; return; }
+  if (NOTIFY_EMAIL && !editingMail) {
+    box.innerHTML = `<div class="remind-mail"><div class="help" style="margin:0">提醒通知會寄到 <b>${esc(NOTIFY_EMAIL)}</b>　<a href="#" id="mail-edit">修改</a></div></div>`;
+    $('mail-edit').onclick = e => { e.preventDefault(); editingMail = true; drawRemind(d); };
+    return;
+  }
+  box.innerHTML = `<div class="remind-mail">
+      <label for="mail-in"><b>提醒要寄到哪個 Email？</b></label>
+      <div class="row"><input id="mail-in" type="email" inputmode="email" autocomplete="email" placeholder="you@gmail.com" value="${esc(NOTIFY_EMAIL)}">
+        <button type="button" class="btn plain small" id="mail-save">儲存</button></div>
+      <div class="help" style="margin-top:6px">只用來寄提醒給你，所有活動共用，可隨時修改或清空。沒填的話，只有打開平台時才看得到「該發提醒了」。</div>
+    </div>`;
+  $('mail-save').onclick = async () => {
+    const b = $('mail-save'), v = $('mail-in').value.trim();
+    b.disabled = true;
+    try { NOTIFY_EMAIL = (await api('setNotifyEmail', { email: v })).notifyEmail; editingMail = false; toast(NOTIFY_EMAIL ? '已儲存，提醒會寄到這個信箱' : '已清空，不會寄 Email'); drawRemind(d); }
+    catch (e) { toast(e.message); b.disabled = false; }
+  };
+}
+
+const startDate = ev => { const t = (ev.start || '').replace(' ', 'T'); return t ? new Date(t) : null; };
+/** 已經到了、但還沒發的提醒時段；沒有就回 [] */
+function dueReminders(ev) {
+  const s = startDate(ev), now = new Date();
+  if (!s || s <= now) return [];
+  return (ev.remind || []).filter(h => now >= new Date(s - h * 3600000) && !(ev.reminded || []).includes(h));
+}
+/** 「還有 7 天」「明天 18:00 開始」「45 分鐘後開始」 */
+function untilText(ev) {
+  const s = startDate(ev); if (!s) return '';
+  const ms = s - new Date();
+  const hm = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`;
+  if (ms <= 0) return '活動已開始';
+  if (ms < 90 * 60000) return `${Math.max(1, Math.round(ms / 60000))} 分鐘後開始`;
+  if (s.toDateString() === new Date().toDateString()) return `今天 ${hm} 開始`;
+  if (s.toDateString() === new Date(Date.now() + 86400000).toDateString()) return `明天 ${hm} 開始`;
+  if (ms < 48 * 3600000) return `${Math.round(ms / 3600000)} 小時後開始`;
+  return `還有 ${Math.round(ms / 86400000)} 天`;
 }
 
 const optionsPreview = t => {
@@ -1048,6 +1147,7 @@ const toPayload = d => ({
   button: d.button.trim() || '我要登記',
   start: (d.start || '').replace('T', ' '), end: (d.end || '').replace('T', ' '), deadline: (d.deadline || '').replace('T', ' '),
   questions: d.questions.filter(q => q.q.trim()).map(q => ({ q: q.q.trim(), options: q.type === 'select' ? splitOptions(q.optionsText) : [] })),
+  remind: d.start ? (d.remind || []) : [],
 });
 /** 下拉選單的題目一定要有選項 */
 const questionProblem = d => { const bad = d.questions.find(q => q.q.trim() && q.type === 'select' && !splitOptions(q.optionsText).length); return bad ? `「${bad.q.trim()}」是下拉選單，請填寫選項` : ''; };
@@ -1156,7 +1256,12 @@ function renderSent() {
   [...SELECTED].forEach(id => { if (!EVENTS.some(e => e.id === id)) SELECTED.delete(id); });
   const allOn = SELECTED.size === EVENTS.length;
   const past = EVENTS.filter(isPast);
+  const due = EVENTS.filter(e => dueReminders(e).length);
   panel.innerHTML = `
+    ${!SELECTING && due.length ? `<div class="cleanup due">
+      <p><b>⏰ ${due.length} 個活動該發提醒了</b><br><span>${due.map(e => esc(e.title)).join('、')}</span></p>
+      <button class="btn plain small" id="go-due">去發提醒</button>
+    </div>` : ''}
     ${!SELECTING && past.length ? `<div class="cleanup">
       <p><b>有 ${past.length} 個活動已經結束</b><br><span>可以刪除清理。刪除後內容會保留成範本，之後還能一鍵套用。</span></p>
       <button class="btn plain small" id="sel-past">選取已結束的活動</button>
@@ -1173,7 +1278,7 @@ function renderSent() {
       <div class="info">${SELECTING ? '<span class="check" aria-hidden="true"></span>' : ''}
         <div class="t">${esc(e.title)}</div>
         <div class="d">${esc(e.date || '未填時間')}${ME.isAdmin && e.creator ? `　由 ${esc(e.creator)} 建立` : ''}</div>
-        ${isPast(e) ? '<span class="state over">活動已結束</span>' : stateTag(e.state)}
+        ${isPast(e) ? '<span class="state over">活動已結束</span>' : stateTag(e.state)}${dueReminders(e).length ? ' <span class="state remind">該發提醒</span>' : ''}
       </div>
       <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人登記'}</small></div>
     </button>`).join('')}</div>`;
@@ -1184,6 +1289,7 @@ function renderSent() {
     renderSent();
   });
   $('sel-toggle').onclick = () => { SELECTING = !SELECTING; SELECTED.clear(); renderSent(); };
+  if ($('go-due')) $('go-due').onclick = () => go({ view: 'detail', id: due[0].id });
   if ($('sel-past')) $('sel-past').onclick = () => { SELECTING = true; SELECTED.clear(); past.forEach(e => SELECTED.add(e.id)); renderSent(); };
   if ($('sel-all')) $('sel-all').onclick = () => { if (allOn) SELECTED.clear(); else EVENTS.forEach(e => SELECTED.add(e.id)); renderSent(); };
 
@@ -1232,6 +1338,7 @@ async function renderDetail(id) {
       <button class="btn send" id="share">發送到群組</button>
       <button class="btn plain" id="toggle">${ev.open ? '停止登記' : '重新開放'}</button>
     </div>
+    ${remindBoxHtml(ev)}
     ${statsHtml(ev, list)}
     <div class="roll-head"><h2>登記名單</h2>${list.length ? `<button class="btn plain small" id="copy">複製名單</button>` : ''}</div>
     ${list.length ? `<ol class="roll">${list.map(a => `
@@ -1242,6 +1349,7 @@ async function renderDetail(id) {
   $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
   $('edit').onclick = () => go({ view: 'edit', id: ev.id });
   $('share').onclick = () => share(ev);
+  if ($('remind-send')) $('remind-send').onclick = () => sendReminder(ev);
   document.querySelectorAll('[data-statcopy]').forEach(b => b.onclick = () => copyText(STAT_COPY[+b.dataset.statcopy], '已複製分組名單'));
   $('del').onclick = async () => {
     const b = $('del');
@@ -1267,6 +1375,40 @@ async function renderDetail(id) {
   if (list.length) $('copy').onclick = () => copyText(
     `${ev.title}\n登記 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${[a.name].concat((a.answers || []).filter(Boolean)).join('，')}`).join('\n'),
     '已複製名單');
+}
+
+/** 活動詳情裡的提醒區：列出每個時段的狀態，到了時間按鈕會變醒目 */
+function remindBoxHtml(ev) {
+  const s = startDate(ev);
+  if (!s || s <= new Date()) return '';
+  const due = dueReminders(ev);
+  const lines = (ev.remind || []).map(h => {
+    const at = new Date(s - h * 3600000);
+    const st = (ev.reminded || []).includes(h) ? '✓ 已發' : due.includes(h) ? '<b style="color:var(--stamp)">該發了</b>' : `${at.getMonth() + 1}/${at.getDate()} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')} 通知你`;
+    return `<li><b>${remindName(h)}</b>　${st}</li>`;
+  }).join('');
+  return `<section class="remind-box ${due.length ? 'due' : ''}">
+    <h3>⏰ 活動提醒　<small style="font-weight:400;color:var(--ink-2)">${esc(untilText(ev))}</small></h3>
+    ${lines ? `<ul>${lines}</ul>` : `<ul><li>沒有設定提醒時段，可以按「編輯」加上。</li></ul>`}
+    <button class="btn ${due.length ? 'send' : 'plain'}" id="remind-send">發提醒到群組</button>
+  </section>`;
+}
+
+async function sendReminder(ev) {
+  const b = $('remind-send');
+  b.disabled = true;
+  if (DEMO) { toast('預覽模式：正式版會在這裡跳出群組選單'); b.disabled = false; return; }
+  if (!liff.isLoggedIn()) { toast('發送到群組前需要登入 LINE 一次'); setTimeout(() => liff.login({ redirectUri: location.href }), 600); return; }
+  if (!liff.isApiAvailable('shareTargetPicker')) { toast('無法開啟群組選單'); b.disabled = false; return; }
+  try {
+    const res = await liff.shareTargetPicker([buildRemindFlex(ev)], { isMultiple: true });
+    if (!res) { toast('已取消發送'); b.disabled = false; return; }
+    const offsets = dueReminders(ev);
+    if (offsets.length) await api('markReminded', { eventId: ev.id, offsets });
+    toast('已把提醒發到群組');
+    await refreshEvents();
+    renderDetail(ev.id);
+  } catch (e) { toast('發送失敗：' + e.message); b.disabled = false; }
 }
 
 let STAT_COPY = [];
@@ -1352,6 +1494,7 @@ function renderEdit(id) {
     capacity: ev.capacity ? String(ev.capacity) : '', deadline: (ev.deadline || '').replace(' ', 'T'),
     questions: (ev.questions || []).map(toDraftQuestion),
     theme: ev.theme || 'classic',
+    remind: ev.remind || [],
   };
   view(`
     <div class="subbar"><button class="back" id="back">‹ 取消</button><h1>編輯活動</h1><span></span></div>
@@ -1454,7 +1597,7 @@ function armThen(btn, label, fn) {
    之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。
    看過舊版的人不會重看整套，而是跳出「新功能：○○　看介紹」，只介紹新加的步驟。 */
 const TOUR_KEY = 'signup.tour';
-const TOUR_VERSION = 7; // 2：加入圖卡色調　3：我的個人資料　4：安裝到手機桌面　5：從過去的活動套用　6：批次刪除　7：已結束提醒與範本保留
+const TOUR_VERSION = 8; // 2：加入圖卡色調　3：我的個人資料　4：安裝到手機桌面　5：從過去的活動套用　6：批次刪除　7：已結束提醒與範本保留　8：活動前提醒
 const q1 = sel => document.querySelector(sel);
 const groupOf = sel => { const el = q1(sel); return el && (el.closest('.group') || el.closest('.field')); };
 const TOUR_STEPS = [
@@ -1468,6 +1611,8 @@ const TOUR_STEPS = [
     text: '填活動名稱；開始和結束時間用選的，只有開始時間也可以。地點照實寫。' },
   { since: 1, tab: 'new', target: () => groupOf('[data-k=capacity]'), title: '名額與登記截止',
     text: '都可以留白。額滿或過了截止時間，登記會自動停止。' },
+  { since: 8, tab: 'new', target: () => q1('.remind-pick'), title: '活動前提醒',
+    text: '勾選要在活動前 7 天、24 小時或 1 小時提醒。到了時間會寄 Email 通知你（不用開著平台），點信裡的按鈕、選群組，提醒卡就發出去了。' },
   { since: 1, tab: 'new', target: () => groupOf('.img-pick'), title: '活動圖片',
     text: '按「上傳圖片」直接從手機選照片，會自動縮小後存好；也可以貼圖片網址。' },
   { since: 1, tab: 'new', target: () => q1('#q-chips') && q1('#q-chips').closest('.group'), title: '登記時要問的問題',
@@ -1651,6 +1796,36 @@ function buildFlex(ev) {
     bubble.hero = { type: 'image', url: ev.image, size: 'full', aspectRatio: '20:13', aspectMode: 'cover', action: { type: 'uri', uri: liffUrl(ev.id) } };
   }
   return { type: 'flex', altText: `【登記】${ev.title}`.slice(0, 400), contents: bubble };
+}
+
+/** 提醒卡：上方色帶寫「明天 18:00 開始」，下面是時間地點與目前人數 */
+function buildRemindFlex(ev) {
+  const t = themeOf(ev);
+  const when = untilText(ev);
+  const meta = [];
+  if (ev.date) meta.push(flexInfo('時間', ev.date, t));
+  if (ev.place) meta.push(flexInfo('地點', ev.place, t));
+  const dl = (ev.deadline || '').replace(' ', 'T');
+  if (dl && new Date(dl) > new Date()) meta.push(flexInfo('截止', shortTime(ev.deadline), t));
+  const count = `目前 ${ev.count || 0} 人登記${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
+  const open = ev.state === 'open' || !ev.state;
+  return {
+    type: 'flex',
+    altText: `⏰ 提醒：「${ev.title}」${when}`.slice(0, 400),
+    contents: {
+      type: 'bubble',
+      styles: { header: { backgroundColor: t.btn }, body: { backgroundColor: t.paper }, footer: { backgroundColor: t.paper } },
+      header: { type: 'box', layout: 'vertical', paddingAll: '16px', contents: [
+        { type: 'text', text: '⏰ 活動提醒', size: 'sm', color: t.notch, weight: 'bold' },
+        { type: 'text', text: when, size: 'xl', color: '#FFFFFF', weight: 'bold', margin: 'sm', wrap: true } ] },
+      body: { type: 'box', layout: 'vertical', paddingAll: '20px', contents: [
+        { type: 'text', text: ev.title, weight: 'bold', size: 'lg', wrap: true, color: t.ink },
+        ...(meta.length ? [{ type: 'box', layout: 'vertical', margin: 'md', spacing: 'sm', contents: meta }] : []),
+        { type: 'text', text: count, size: 'sm', color: t.muted, margin: 'md' } ] },
+      footer: open ? flexButton('還沒登記？按這裡', ev)
+        : { type: 'box', layout: 'vertical', paddingAll: '16px', contents: [{ type: 'button', style: 'secondary', height: 'sm', action: { type: 'uri', label: '查看名單', uri: liffUrl(ev.id) } }] },
+    },
+  };
 }
 
 /** 接龍卡：列出目前所有登記的人，一人一行、序號用色調粗體，下面附登記按鈕 */
