@@ -78,6 +78,7 @@
   .ticket dt { color: var(--ink-2); }
   .ticket dd { margin: 0; word-break: break-word; }
   .ticket .desc { color: var(--ink-2); font-size: 14px; margin: 12px 0 0; white-space: pre-wrap; word-break: break-word; }
+  .ticket .desc a, .ticket dd a { color: var(--line); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
   .ticket .perf { position: relative; height: 0; border-top: 2px dashed var(--rule); margin: 0 18px; }
   .ticket .perf::before, .ticket .perf::after { content: ""; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--sky); }
   .ticket .perf::before { left: -31px; }
@@ -386,6 +387,32 @@ const DEMO = LIFF_ID.startsWith('請填') || PARAMS.has('demo');
 
 const $app = document.getElementById('app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+/* ---------- 網址變成可以點的連結 ---------- */
+const URL_RE = /https?:\/\/[^\s<>"'，。、；）)\]]+/g;
+/** 地點：可在名稱後面貼 Google 地圖的分享連結；沒貼的話就用地名在 Google 地圖搜尋 */
+function placeInfo(place) {
+  const s = String(place || '').trim();
+  const m = s.match(URL_RE);
+  const name = (m ? s.replace(m[0], '') : s).replace(/\s+/g, ' ').trim();
+  const url = m ? m[0] : name ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(name) : '';
+  return { name: name || '查看地圖', url: url.length <= 1000 ? url : '' };
+}
+/** 把文字切成「一般文字」與「網址」片段 */
+function splitLinks(text) {
+  const out = []; let last = 0; const s = String(text || '');
+  for (const m of s.matchAll(URL_RE)) {
+    if (m.index > last) out.push({ text: s.slice(last, m.index) });
+    out.push({ url: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out.push({ text: s.slice(last) });
+  return out;
+}
+const linkify = text => splitLinks(text).map(p => p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url)}</a>` : esc(p.text)).join('');
+const placeHtml = place => { const p = placeInfo(place); return p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="map-link">${esc(p.name)}<span aria-hidden="true"> ↗</span></a>` : esc(p.name); };
+/** 網址太長時，顯示成「網域/路徑…」 */
+const shortUrl = u => { const v = u.replace(/^https?:\/\/(www\.)?/, ''); return v.length > 36 ? v.slice(0, 34) + '…' : v; };
 const view = html => { $app.innerHTML = html; window.scrollTo(0, 0); };
 const $ = id => document.getElementById(id);
 const loading = () => `<div class="loading" role="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
@@ -576,7 +603,7 @@ const themeVars = t => `--paper:${t.paper};--line:${t.btn};--marigold:${t.notch}
 function ticket(ev, stubHtml, extra = '') {
   const meta = [];
   if (ev.date) meta.push(`<dt>時間</dt><dd>${esc(ev.date)}</dd>`);
-  if (ev.place) meta.push(`<dt>地點</dt><dd>${esc(ev.place)}</dd>`);
+  if (ev.place) meta.push(`<dt>地點</dt><dd>${placeHtml(ev.place)}</dd>`);
   if (+ev.capacity) meta.push(`<dt>名額</dt><dd>${+ev.capacity} 人</dd>`);
   if (shortTime(ev.deadline)) meta.push(`<dt>截止</dt><dd>${shortTime(ev.deadline)}</dd>`);
   return `<article class="ticket" style="${themeVars(themeOf(ev))}">
@@ -585,7 +612,7 @@ function ticket(ev, stubHtml, extra = '') {
     <div class="main">
       <h2 class="title ${ev.title ? '' : 'empty'}">${esc(ev.title || '活動名稱')}</h2>
       ${meta.length ? `<dl>${meta.join('')}</dl>` : ''}
-      ${ev.desc ? `<p class="desc">${esc(ev.desc)}</p>` : ''}
+      ${ev.desc ? `<p class="desc">${linkify(ev.desc)}</p>` : ''}
     </div>
     <div class="perf" aria-hidden="true"></div>
     ${stubHtml}
@@ -979,7 +1006,7 @@ function eventForm(d) {
         ${f('start', '開始時間', 'type="datetime-local"')}
         ${f('end', '結束時間', 'type="datetime-local"', '選填')}
       </div>
-      ${f('place', '地點')}
+      ${f('place', '地點', 'placeholder="例如：一會所大會堂"', '圖卡上的地點可以點開 Google 地圖。要更準確，可在地點後面貼上 Google 地圖的分享連結。')}
     </div>
     <div class="group"><h2>名額與截止</h2>
       <div class="row2">
@@ -996,7 +1023,7 @@ function eventForm(d) {
       <div id="r-mail"></div>
     </div>
     <div class="group"><h2>內容</h2>
-      <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea></label>
+      <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea><div class="help">說明裡的網址會變成可以點的連結。</div></label>
       <div class="field"><span>圖片</span>
         <div class="img-pick">
           <label class="btn plain small">上傳圖片<input type="file" accept="image/*" id="img-file" hidden></label>
@@ -1215,7 +1242,7 @@ function templatesHtml() {
     <div class="tpl-row">${list.map((e, i) => `
       <div class="tpl-wrap">
         <button type="button" class="tpl" data-tpl="${i}" style="--tc:${themeOf(e).btn}">
-          <b>${esc(e.title)}</b><small>${esc(e.place || '未填地點')}</small>${e.saved ? '<small class="saved">已刪除的活動</small>' : ''}
+          <b>${esc(e.title)}</b><small>${esc(e.place ? placeInfo(e.place).name : '未填地點')}</small>${e.saved ? '<small class="saved">已刪除的活動</small>' : ''}
         </button>
         ${e.saved ? `<button type="button" class="tpl-x" data-tpldel="${i}" aria-label="移除「${esc(e.title)}」這個範本">×</button>` : ''}
       </div>`).join('')}</div>
@@ -1825,6 +1852,23 @@ const flexInfo = (k, v, t) => ({ type: 'box', layout: 'baseline', spacing: 'md',
   { type: 'text', text: k, color: t.muted, size: 'sm', flex: 0 },
   { type: 'text', text: String(v), wrap: true, color: t.ink, size: 'sm', flex: 1 } ] });
 
+/** 地點列：點了開 Google 地圖 */
+const flexPlace = (place, t) => {
+  const p = placeInfo(place);
+  return { type: 'box', layout: 'baseline', spacing: 'md', contents: [
+    { type: 'text', text: '地點', color: t.muted, size: 'sm', flex: 0 },
+    { type: 'text', text: p.name + (p.url ? ' 📍' : ''), wrap: true, color: p.url ? t.btn : t.ink, size: 'sm', flex: 1,
+      ...(p.url ? { decoration: 'underline', action: { type: 'uri', label: '開啟地圖', uri: p.url } } : {}) } ] };
+};
+/** 說明：一般文字照原樣，網址各自一行、可以點 */
+const flexDesc = (desc, t) => {
+  const parts = splitLinks(desc).map(p => p.url ? p : { text: p.text.replace(/^\s*\n|\n\s*$/g, '') }).filter(p => p.url || p.text.trim());
+  const items = parts.map(p => p.url
+    ? { type: 'text', text: '🔗 ' + shortUrl(p.url), size: 'sm', color: t.btn, decoration: 'underline', wrap: true, action: { type: 'uri', label: '開啟連結', uri: p.url } }
+    : { type: 'text', text: p.text.trim(), size: 'sm', color: t.muted, wrap: true });
+  return items.length === 1 ? { ...items[0], margin: 'lg' } : { type: 'box', layout: 'vertical', margin: 'lg', spacing: 'xs', contents: items };
+};
+
 const flexButton = (label, ev) => { const t = themeOf(ev); return { type: 'box', layout: 'vertical', paddingAll: '16px', paddingBottom: '8px', contents: [
   { type: 'box', layout: 'horizontal', spacing: 'md', contents: [
     { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: t.notch, contents: [] },
@@ -1839,11 +1883,11 @@ function buildFlex(ev) {
   const body = [{ type: 'text', text: ev.title, weight: 'bold', size: 'xl', wrap: true, color: t.ink }];
   const meta = [];
   if (ev.date) meta.push(flexInfo('時間', ev.date, t));
-  if (ev.place) meta.push(flexInfo('地點', ev.place, t));
+  if (ev.place) meta.push(flexPlace(ev.place, t));
   if (+ev.capacity) meta.push(flexInfo('名額', ev.capacity + ' 人', t));
   if (shortTime(ev.deadline)) meta.push(flexInfo('截止', shortTime(ev.deadline), t));
   if (meta.length) body.push({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm', contents: meta });
-  if (ev.desc) body.push({ type: 'text', text: ev.desc, size: 'sm', color: t.muted, wrap: true, margin: 'lg' });
+  if (ev.desc) body.push(flexDesc(ev.desc, t));
 
   const bubble = {
     type: 'bubble',
@@ -1863,7 +1907,7 @@ function buildRemindFlex(ev) {
   const when = untilText(ev);
   const meta = [];
   if (ev.date) meta.push(flexInfo('時間', ev.date, t));
-  if (ev.place) meta.push(flexInfo('地點', ev.place, t));
+  if (ev.place) meta.push(flexPlace(ev.place, t));
   const dl = (ev.deadline || '').replace(' ', 'T');
   if (dl && new Date(dl) > new Date()) meta.push(flexInfo('截止', shortTime(ev.deadline), t));
   const count = `目前 ${ev.count || 0} 人登記${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
@@ -1899,7 +1943,7 @@ function buildRollFlex(ev, names, who, verb = '登記了') {
   // 時間、地點也放在接龍卡上，不用再滑上去找原本的圖卡
   const rollMeta = [];
   if (ev.date) rollMeta.push(flexInfo('時間', ev.date, t));
-  if (ev.place) rollMeta.push(flexInfo('地點', ev.place, t));
+  if (ev.place) rollMeta.push(flexPlace(ev.place, t));
   if (shortTime(ev.deadline)) rollMeta.push(flexInfo('截止', shortTime(ev.deadline), t));
   const count = `目前 ${n} 人${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
   return {
