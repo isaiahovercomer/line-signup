@@ -16,6 +16,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
+<!-- 先跟後端與 LINE 建立連線，省下第一次讀取的握手時間 -->
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://api.line.me" crossorigin>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
@@ -495,8 +499,18 @@ async function demoApi(action, d) {
 /* ---------- 平台通行證：登入一次，60 天內不用再登入 ---------- */
 const SESSION_KEY = 'signup.session';
 const getSession = () => { try { const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); return s && s.expires > Date.now() + 60000 ? s : null; } catch (e) { return null; } };
-const setSession = s => { try { s ? localStorage.setItem(SESSION_KEY, JSON.stringify({ token: s.token, expires: s.expires })) : localStorage.removeItem(SESSION_KEY); } catch (e) {} };
+const setSession = s => { try { s ? localStorage.setItem(SESSION_KEY, JSON.stringify({ token: s.token, expires: s.expires })) : (localStorage.removeItem(SESSION_KEY), localStorage.removeItem('signup.cache')); } catch (e) {} };
 const DRAFT_KEY = 'signup.draft';
+
+/* ---------- 平台資料快取：先用上次的資料立刻畫面，背景再更新 ---------- */
+const CACHE_KEY = 'signup.cache';
+const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) { return null; } };
+const CACHE_OK = !DEMO || PARAMS.has('cachetest'); // 預覽模式不寫快取，免得混進正式資料
+const writeCache = () => { if (!CACHE_OK) return; try { localStorage.setItem(CACHE_KEY, JSON.stringify({ me: ME, events: EVENTS, templates: TEMPLATES, notifyEmail: NOTIFY_EMAIL, at: Date.now() })); } catch (e) {} };
+const clearCache = () => { try { localStorage.removeItem(CACHE_KEY); } catch (e) {} };
+/** 一次同時抓「我是誰」和活動列表（兩個請求並行） */
+const fetchBoot = () => Promise.all([api('me'), api('listEvents')]);
+let BOOT = null;
 
 async function api(action, data = {}) {
   if (DEMO) return demoApi(action, data);
@@ -523,6 +537,9 @@ async function api(action, data = {}) {
 async function main() {
   try {
     if (PARAMS.has('install')) return installFlow(); // 安裝說明頁不需要登入
+    const platformRoute = !['event', 'share', 'mydata', 'install'].some(k => PARAMS.has(k)) && !(DEMO && PARAMS.get('demo'));
+    // 已有通行證：不用等 LINE 初始化，馬上開始抓資料
+    if (platformRoute && (DEMO || getSession())) BOOT = fetchBoot();
     if (!DEMO) {
       await liff.init({ liffId: LIFF_ID });
       if (!liff.isLoggedIn() && !getSession()) { liff.login({ redirectUri: location.href }); return; }
@@ -855,19 +872,49 @@ let draft = blankDraft();
 let editDraft = null;
 
 async function publisherFlow() {
-  view(loading());
-  ME = await api('me'); // 任何人都能發布；ME.isAdmin 為 true 才看得到所有活動與成員名單
-  await refreshEvents();
-  // 為了發送而去登入 LINE、回來後把剛才填的內容放回去
-  try { const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (saved) { draft = { ...blankDraft(), ...saved }; localStorage.removeItem(DRAFT_KEY); setTimeout(() => toast('已登入，內容都還在，按「發送到 LINE 群組」繼續'), 300); } } catch (e) {}
+  const cache = readCache();
+  const restoreDraft = () => { try { const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (saved) { draft = { ...blankDraft(), ...saved }; localStorage.removeItem(DRAFT_KEY); setTimeout(() => toast('已登入，內容都還在，按「發送到 LINE 群組」繼續'), 300); } } catch (e) {} };
   const remindId = PARAMS.get('remind');
-  if (remindId && EVENTS.some(e => e.id === remindId)) { TAB = 'sent'; return go({ view: 'detail', id: remindId }); }
-  render();
-  if (!PARAMS.has('notour')) maybeStartTour();
+  const firstPaint = () => {
+    if (remindId && EVENTS.some(e => e.id === remindId)) { TAB = 'sent'; go({ view: 'detail', id: remindId }); return; }
+    render();
+    if (!PARAMS.has('notour')) maybeStartTour();
+  };
+  if (!BOOT) BOOT = fetchBoot();
+  if (cache && cache.me && CACHE_OK) {
+    // 先用上次的資料畫出來，使用者可以馬上操作；新資料回來後只更新有變的部分
+    ME = cache.me; EVENTS = cache.events || []; TEMPLATES = cache.templates || []; NOTIFY_EMAIL = cache.notifyEmail || '';
+    restoreDraft(); firstPaint();
+    BOOT.then(([me, r]) => {
+      const switched = me.userId !== ME.userId || me.isAdmin !== ME.isAdmin;
+      ME = me; EVENTS = r.events; TEMPLATES = r.templates || []; NOTIFY_EMAIL = r.notifyEmail || '';
+      writeCache();
+      if (switched) render(); else softRefresh();
+    }).catch(e => toast(e.message));
+    return;
+  }
+  view(loading());
+  const [me, r] = await BOOT; // 任何人都能發布；ME.isAdmin 為 true 才看得到所有活動與成員名單
+  ME = me; EVENTS = r.events; TEMPLATES = r.templates || []; NOTIFY_EMAIL = r.notifyEmail || '';
+  writeCache();
+  restoreDraft(); firstPaint();
+}
+
+/** 背景更新完：不重畫正在填的表單，只更新數字、範本與列表 */
+function softRefresh() {
+  const n = document.querySelector('[data-tab=sent] .n'); if (n) n.textContent = EVENTS.length;
+  if (ROUTE.view !== 'tabs') return;
+  if (TAB === 'sent' && !SELECTING) return renderSent();
+  if (TAB === 'new' && $('panel')) {
+    const old = document.querySelector('.templates'), html = templatesHtml();
+    if (old) old.outerHTML = html; else if (html) $('panel').insertAdjacentHTML('afterbegin', html);
+    bindTemplates();
+    if ($('r-help')) drawRemind(draft);
+  }
 }
 
 async function refreshEvents() {
-  try { const r = await api('listEvents'); EVENTS = r.events; TEMPLATES = r.templates || []; NOTIFY_EMAIL = r.notifyEmail || ''; } catch (e) { toast(e.message); }
+  try { const r = await api('listEvents'); EVENTS = r.events; TEMPLATES = r.templates || []; NOTIFY_EMAIL = r.notifyEmail || ''; writeCache(); } catch (e) { toast(e.message); }
 }
 
 function copyText(text, done) {
@@ -1322,12 +1369,23 @@ function renderSent() {
 }
 
 /* ---------- 活動詳情 ---------- */
+/* 活動詳情：看過的直接用上次的資料先顯示；沒看過的先顯示圖卡，名單與統計隨後補上 */
+const DETAIL_CACHE = {};
 async function renderDetail(id) {
-  view(`<div class="subbar"><button class="back" id="back">‹ 已發布</button></div>${loading()}`);
-  $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
+  const here = () => ROUTE.view === 'detail' && ROUTE.id === id;
+  const cached = DETAIL_CACHE[id], ev0 = EVENTS.find(x => x.id === id);
+  if (cached) drawDetail(cached);
+  else view(`<div class="subbar"><button class="back" id="back">‹ 已發布</button></div>${ev0 ? ticket(ev0, `<div class="stub tally"><b>${ev0.count}</b><span>${ev0.capacity ? `／${ev0.capacity} 人` : '人登記'}</span>${stateTag(ev0.state)}</div>`) : ''}${loading()}`);
+  if (!cached) $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
   let d;
   try { d = await api('eventDetail', { eventId: id }); }
   catch (e) { toast(e.message); return; }
+  DETAIL_CACHE[id] = d;
+  if (here()) drawDetail(d, !!cached);
+}
+
+function drawDetail(d, keepScroll) {
+  const y = window.scrollY;
   const ev = d.event, list = d.attendees;
   const i = EVENTS.findIndex(x => x.id === ev.id); if (i >= 0) EVENTS[i] = ev;
 
@@ -1369,12 +1427,13 @@ async function renderDetail(id) {
   };
   $('toggle').onclick = async () => {
     $('toggle').disabled = true;
-    try { await api('setOpen', { eventId: ev.id, open: !ev.open }); toast(ev.open ? '已停止登記' : '已重新開放登記'); renderDetail(ev.id); }
+    try { await api('setOpen', { eventId: ev.id, open: !ev.open }); toast(ev.open ? '已停止登記' : '已重新開放登記'); delete DETAIL_CACHE[ev.id]; renderDetail(ev.id); }
     catch (e) { toast(e.message); $('toggle').disabled = false; }
   };
   if (list.length) $('copy').onclick = () => copyText(
     `${ev.title}\n登記 ${list.length} 人${ev.capacity ? `／上限 ${ev.capacity}` : ''}\n` + list.map((a, n) => `${n + 1}. ${[a.name].concat((a.answers || []).filter(Boolean)).join('，')}`).join('\n'),
     '已複製名單');
+  if (keepScroll) window.scrollTo(0, y);
 }
 
 /** 活動詳情裡的提醒區：列出每個時段的狀態，到了時間按鈕會變醒目 */
@@ -1407,7 +1466,7 @@ async function sendReminder(ev) {
     if (offsets.length) await api('markReminded', { eventId: ev.id, offsets });
     toast('已把提醒發到群組');
     await refreshEvents();
-    renderDetail(ev.id);
+    delete DETAIL_CACHE[ev.id]; renderDetail(ev.id);
   } catch (e) { toast('發送失敗：' + e.message); b.disabled = false; }
 }
 
@@ -1510,7 +1569,7 @@ function renderEdit(id) {
       await api('updateEvent', { eventId: id, event: toPayload(editDraft) });
       toast('已儲存變更。群組裡舊的圖卡不會變，需要的話再發送一次。');
       await refreshEvents();
-      go({ view: 'detail', id });
+      delete DETAIL_CACHE[id]; go({ view: 'detail', id });
     } catch (e) { toast(e.message); b.disabled = false; b.textContent = '儲存變更'; }
   };
 }
