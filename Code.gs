@@ -726,7 +726,7 @@ function remindTick() {
         subject: '⏰ 該發提醒了：' + ev.title + '（' + when + '）',
         htmlBody: '<p>「<b>' + ev.title + '</b>」' + when + '。</p>'
           + '<p>時間：' + (ev.date || '') + (ev.place ? '<br>地點：' + ev.place : '') + '<br>目前登記：' + count + ' 人' + (ev.capacity ? '／名額 ' + ev.capacity : '') + '</p>'
-          + '<p><a href="' + link + '" style="display:inline-block;background:#2F3343;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:bold">打開平台，發提醒到群組</a></p>'
+          + '<p><a href="' + link + '" style="display:inline-block;background:#3A6848;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:bold">打開平台，發提醒到群組</a></p>'
           + '<p style="color:#888;font-size:12px">在手機上點按鈕會開啟 LINE，選群組就能送出提醒卡。不想再收到這類信，可在平台「新活動 → 提醒」清空 Email。</p>',
       });
     } catch (e) { console.warn('寄送提醒失敗：' + e.message); }

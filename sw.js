@@ -1,7 +1,7 @@
 // 安裝到手機桌面用的 Service Worker。
 // 一律先抓網路上的最新版，抓不到（離線）才用上次存下來的，所以更新網頁後不會卡在舊版。
-const CACHE = 'signup-v2';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg', './img/in-christ.svg'];
+const CACHE = 'signup-v3';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
