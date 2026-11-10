@@ -352,6 +352,7 @@
   .tour-bubble { position: absolute; left: 0; top: 0; width: min(320px, calc(100vw - 24px)); background: var(--chrome); color: var(--chrome-fg);
     border: 1px solid var(--marigold); border-radius: 16px; padding: 14px 16px 12px; box-shadow: 0 12px 36px rgba(0,0,0,.35); font-size: 15px; line-height: 1.6;
     transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+  .tour-bubble.wait { opacity: 0; pointer-events: none; }
   .tour-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .tour-head h2 { margin: 0; font: 900 17px/1.4 var(--serif); color: #D9A466; letter-spacing: .04em; }
   .tour-count { flex: none; font-size: 12px; font-weight: 700; color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
@@ -946,6 +947,7 @@ function softRefresh() {
     bindTemplates();
     if ($('r-help')) drawRemind(draft);
   }
+  if (TOUR) placeTour();
 }
 
 async function refreshEvents() {
@@ -1822,7 +1824,7 @@ function startTour(steps) {
   const el = document.createElement('div');
   el.className = 'tour';
   el.innerHTML = `<div class="tour-catch"></div><div class="tour-hole" aria-hidden="true"></div>
-    <div class="tour-bubble" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+    <div class="tour-bubble wait" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
       <div class="tour-head"><h2 id="tour-title"></h2><span class="tour-count"></span></div>
       <p id="tour-text"></p>
       <div class="tour-btns"><button type="button" class="tour-skip">跳過</button><button type="button" class="tour-prev">上一步</button><button type="button" class="tour-next">下一步</button></div>
@@ -1848,12 +1850,19 @@ async function tourGo(i, dir) {
   if (i >= t.steps.length) return endTour();
   const s = t.steps[i];
   t.busy = true;
-  if (s.tab && (TAB !== s.tab || ROUTE.view !== 'tabs')) { TAB = s.tab; ROUTE = { view: 'tabs' }; render(); }
-  let el = null;
-  for (let n = 0; n < 40 && !el; n++) { el = s.target(); if (!el) await sleep(50); }
+  const bubble = t.el.querySelector('.tour-bubble');
+  // 換分頁時畫面要重畫，稍等目標出現；同一頁找不到就直接跳過，不讓空白的說明框停在畫面上
+  const switching = s.tab && (TAB !== s.tab || ROUTE.view !== 'tabs');
+  if (switching) { bubble.classList.add('wait'); TAB = s.tab; ROUTE = { view: 'tabs' }; render(); }
+  let el = s.target();
+  for (let n = 0; !el && switching && n < 16; n++) { await sleep(50); el = s.target(); }
   t.busy = false;
   if (TOUR !== t) return;
-  if (!el) return tourGo(i + dir, dir); // 這一步要圈的東西不在畫面上（例如沒有權限）就跳過
+  if (!el) {
+    const next = i + dir;
+    if (next < 0 || next >= t.steps.length) { if (t.i < 0) return endTour(); bubble.classList.remove('wait'); return dir > 0 ? endTour() : undefined; }
+    return tourGo(next, dir); // 這一步要圈的東西不在畫面上（例如沒有權限、沒有範本）就跳過
+  }
   t.i = i; t.target = el;
   el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
   t.el.querySelector('#tour-title').textContent = s.title;
@@ -1862,6 +1871,7 @@ async function tourGo(i, dir) {
   t.el.querySelector('.tour-prev').disabled = i === 0;
   t.el.querySelector('.tour-next').textContent = i === t.steps.length - 1 ? '完成' : '下一步';
   placeTour();
+  bubble.classList.remove('wait'); // 文字都填好、位置對好才顯示
   await sleep(reducedMotion() ? 0 : 380); // 等捲動停下來再對準
   placeTour();
   t.el.querySelector('.tour-next').focus({ preventScroll: true });
@@ -1870,6 +1880,8 @@ async function tourGo(i, dir) {
 function placeTour() {
   const t = TOUR;
   if (!t || !t.target) return;
+  // 背景更新可能把圈住的區塊換成新的，重新找一次
+  if (!t.target.isConnected) { const again = t.steps[t.i] && t.steps[t.i].target(); if (again) t.target = again; else return; }
   const PAD = 6, GAP = 14, EDGE = 12;
   const r = t.target.getBoundingClientRect();
   const x = Math.max(r.left - PAD, 4), y = Math.max(r.top - PAD, 4);
