@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2F3343">
+<meta name="theme-color" content="#D5E4D7">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="活動登記">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>LINE簡易活動登記建立平台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,30 +23,31 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
-    /* 配色取自聖經網站的 IN CHRIST 配色：米白紙、海軍藍、金 */
-    --sky: #FAF6EE;        /* 頁面底色（暖米白） */
-    --sky-2: #F0E9DB;      /* 次要底色 */
-    --paper: #FFFDF8;      /* 票券紙 */
-    --ink: #2F3343;        /* 主要文字（海軍藍） */
-    --ink-2: #67645F;      /* 次要文字 */
-    --rule: #E4DCCC;       /* 分隔、邊框 */
-    --marigold: #C49356;   /* 金色點綴、票根 */
-    --gold-text: #8A6431;  /* 米白底上的金色文字 */
-    --gold-soft: rgba(196, 147, 86, .16);
-    --line: #2F3343;       /* 主要動作按鈕 */
-    --line-dark: #1E2130;
-    --chrome: #2F3343;     /* 頁首橫幅 */
-    --chrome-fg: #F7F1E4;
-    --chrome-muted: #C9C2B3;
+    /* 平台配色：淡鼠尾草綠（淺色素雅，與其他圖卡平台區分） */
+    --sky: #F2F6F1;        /* 頁面底色 */
+    --sky-2: #E3EDE4;      /* 柔和襯底 */
+    --paper: #FFFFFF;      /* 卡片／票券紙 */
+    --ink: #243028;        /* 主要文字 */
+    --ink-2: #55605A;      /* 次要文字 */
+    --rule: #D4E0D6;       /* 分隔、邊框 */
+    --marigold: #5F8A6A;   /* 裝飾點綴、頁首底邊、焦點環 */
+    --gold-text: #3A6848;  /* 淺底上的強調文字 */
+    --gold-soft: rgba(95, 138, 106, .16);
+    --line: #3A6848;       /* 主要動作按鈕（白字對比達 AA） */
+    --line-dark: #2F5C3E;
+    --on-line: #F7FBF6;    /* 深色按鈕／toast 上的文字 */
+    --chrome: #D5E4D7;     /* 頁首淺綠帶 */
+    --chrome-fg: #243028;
+    --chrome-muted: #3A6848;
     --stamp: #B03A2E;      /* 印章、刪除（磚紅） */
-    --shadow: 0 1px 2px rgba(60, 40, 20, .05), 0 8px 24px rgba(60, 40, 20, .08);
+    --shadow: 0 1px 2px rgba(40, 60, 45, .05), 0 8px 24px rgba(40, 60, 45, .08);
     --serif: "Noto Serif TC", "Songti TC", serif;
     --sans: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.6; -webkit-text-size-adjust: 100%; }
   button, input, textarea { font: inherit; color: inherit; }
-  :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  :focus-visible { outline: 3px solid var(--line); outline-offset: 2px; }
   [hidden] { display: none !important; }
 
   #app { max-width: 480px; margin: 0 auto; padding: 0 16px calc(120px + env(safe-area-inset-bottom)); }
@@ -54,7 +55,7 @@
   /* ---------- 頂部 ---------- */
   header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 -16px; padding: calc(22px + env(safe-area-inset-top)) 16px 18px; background: var(--chrome); color: var(--chrome-fg); border-bottom: 3px solid var(--marigold); }
   header.top .brand { display: flex; align-items: center; gap: 12px; }
-  header.top .logo { width: 44px; height: 44px; flex: none; }
+  header.top .logo { width: 44px; height: 44px; flex: none; border-radius: 10px; }
   header.top h1 { font-family: var(--serif); font-weight: 900; font-size: 24px; letter-spacing: .06em; margin: 0; color: var(--chrome-fg); }
   header.top .who { color: var(--chrome-muted); font-size: 14px; white-space: nowrap; }
   .demo-note { background: var(--gold-soft); color: var(--gold-text); font-size: 13px; padding: 8px 12px; border-radius: 8px; margin: 8px 0 4px; }
@@ -85,7 +86,7 @@
   .ticket .perf::after { right: -31px; }
   .ticket .stub { padding: 16px 22px 20px; display: flex; align-items: center; gap: 14px; }
   .ticket .stub .notch { width: 8px; align-self: stretch; background: var(--marigold); border-radius: 4px; }
-  .ticket .stub .fake-btn { flex: 1; background: var(--line); color: var(--chrome-fg); text-align: center; font-weight: 700; padding: 11px; border-radius: 10px; }
+  .ticket .stub .fake-btn { flex: 1; background: var(--line); color: var(--on-line); text-align: center; font-weight: 700; padding: 11px; border-radius: 10px; }
   .ticket .tally { display: flex; align-items: baseline; gap: 6px; }
   .ticket .tally b { font-family: var(--serif); font-size: 34px; line-height: 1; }
   .ticket .tally span { color: var(--ink-2); font-size: 14px; }
@@ -151,12 +152,12 @@
   .chip.new { border-style: solid; border-color: var(--ink); font-weight: 700; }
 
   /* ---------- 底部固定按鈕 ---------- */
-  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(250,246,238,0)); z-index: 5; }
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, transparent); z-index: 5; }
   .dock .inner { max-width: 480px; margin: 0 auto; }
   .btn { display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 700; cursor: pointer; }
-  .btn.send { background: var(--line); color: var(--chrome-fg); box-shadow: 0 6px 16px -8px var(--line-dark); }
+  .btn.send { background: var(--line); color: var(--on-line); box-shadow: 0 6px 16px -8px var(--line-dark); }
   .btn.send:active { background: var(--line-dark); }
-  .btn.ink { background: var(--ink); color: var(--chrome-fg); }
+  .btn.ink { background: var(--ink); color: var(--on-line); }
   .btn.plain { background: var(--paper); color: var(--ink); border: 1.5px solid var(--rule); }
   .btn.cancel { background: transparent; color: var(--stamp); border: 1.5px solid rgba(176, 58, 46, .35); }
   .btn.cancel.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
@@ -335,12 +336,12 @@
 
   code.uid { display: block; word-break: break-all; background: var(--sky); padding: 10px 12px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
 
-  .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: var(--chrome-fg); padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; }
+  .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: var(--on-line); padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
   /* ---------- 頁首的教學按鈕 ---------- */
   header.top { align-items: center; }
-  header.top .help { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1.5px solid var(--marigold); background: transparent; color: var(--marigold); font-family: var(--serif); font-weight: 900; font-size: 18px; cursor: pointer; }
+  header.top .help { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1.5px solid var(--gold-text); background: transparent; color: var(--gold-text); font-family: var(--serif); font-weight: 900; font-size: 18px; cursor: pointer; }
 
   /* ---------- 使用教學：變暗＋金框圈出功能＋說明泡泡（樣式取自聖經網站） ---------- */
   .tour { position: fixed; inset: 0; z-index: 1000; opacity: 0; transition: opacity .22s; }
@@ -354,13 +355,13 @@
     transition: transform .32s cubic-bezier(.2,.8,.2,1); }
   .tour-bubble.wait { opacity: 0; pointer-events: none; }
   .tour-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-  .tour-head h2 { margin: 0; font: 900 17px/1.4 var(--serif); color: #D9A466; letter-spacing: .04em; }
+  .tour-head h2 { margin: 0; font: 900 17px/1.4 var(--serif); color: var(--gold-text); letter-spacing: .04em; }
   .tour-count { flex: none; font-size: 12px; font-weight: 700; color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
   .tour-bubble p { margin: 6px 0 12px; }
   .tour-btns { display: flex; align-items: center; gap: 6px; }
   .tour-btns button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 99px; background: transparent; font-size: 15px; color: var(--chrome-fg); cursor: pointer; }
   .tour-btns .tour-skip { color: var(--chrome-muted); padding-left: 4px; margin-right: auto; }
-  .tour-btns .tour-next { background: var(--marigold); color: var(--chrome); font-weight: 700; padding: 0 18px; }
+  .tour-btns .tour-next { background: var(--line); color: var(--on-line); font-weight: 700; padding: 0 18px; }
   .tour-btns button:disabled { opacity: .4; cursor: default; }
   .tour-btns button:focus-visible { outline: 2px solid var(--chrome-fg); outline-offset: 2px; }
 
@@ -368,7 +369,7 @@
   .notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 20; width: min(440px, calc(100% - 24px));
     display: flex; align-items: center; gap: 8px; background: var(--chrome); color: var(--chrome-fg); border: 1px solid var(--marigold); border-radius: 14px; padding: 10px 8px 10px 14px; box-shadow: 0 10px 28px rgba(0,0,0,.25); font-size: 14px; }
   .notice span { flex: 1; }
-  .notice #notice-go { border: 0; background: var(--marigold); color: var(--chrome); font-weight: 700; border-radius: 99px; padding: 7px 14px; cursor: pointer; white-space: nowrap; }
+  .notice #notice-go { border: 0; background: var(--line); color: var(--on-line); font-weight: 700; border-radius: 99px; padding: 7px 14px; cursor: pointer; white-space: nowrap; }
   .notice #notice-x { border: 0; background: transparent; color: var(--chrome-muted); font-size: 20px; width: 32px; cursor: pointer; }
 
   @media (prefers-reduced-motion: reduce) {
@@ -965,7 +966,7 @@ function render() {
   if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
   const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
   view(`
-    <header class="top"><div class="brand"><img class="logo" src="img/in-christ.svg" alt="IN CHRIST 標誌" width="44" height="44"><h1>建立活動登記圖卡</h1></div><button class="help" id="help" type="button" aria-label="使用教學">?</button></header>
+    <header class="top"><div class="brand"><img class="logo" src="icons/icon.svg?v=3" alt="活動登記" width="44" height="44"><h1>建立活動登記圖卡</h1></div><button class="help" id="help" type="button" aria-label="使用教學">?</button></header>
     ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
