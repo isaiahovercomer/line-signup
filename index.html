@@ -106,6 +106,9 @@
   .field input, .field textarea { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; min-height: 50px; }
   .field textarea { min-height: 96px; resize: vertical; }
   .field input:focus, .field textarea:focus { outline: none; border-color: var(--ink); }
+  .ticket .desc.more { margin-top: 6px; color: var(--line); font-weight: 700; }
+  .desc-help { display: flex; gap: 10px; justify-content: space-between; }
+  .desc-help b { flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
   .map-pick small { font-weight: 400; color: var(--ink-2); }
   .map-row { display: flex; gap: 8px; align-items: stretch; }
   .map-row input { flex: 1; min-width: 0; }
@@ -617,6 +620,7 @@ function ticket(ev, stubHtml, extra = '') {
       <h2 class="title ${ev.title ? '' : 'empty'}">${esc(ev.title || '活動名稱')}</h2>
       ${meta.length ? `<dl>${meta.join('')}</dl>` : ''}
       ${ev.desc ? `<p class="desc">${linkify(ev.desc)}</p>` : ''}
+      ${ev.desc && ev.desc.endsWith('…') && String(ev.desc).length > DESC_CARD * 0.6 ? '<p class="desc more">看完整說明 ›</p>' : ''}
     </div>
     <div class="perf" aria-hidden="true"></div>
     ${stubHtml}
@@ -1034,7 +1038,7 @@ function eventForm(d) {
       <div id="r-mail"></div>
     </div>
     <div class="group"><h2>內容</h2>
-      <label class="field"><span>說明</span><textarea data-k="desc" maxlength="300" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea><div class="help">說明裡的網址會變成可以點的連結。</div></label>
+      <label class="field"><span>說明</span><textarea data-k="desc" maxlength="${DESC_MAX}" rows="5" placeholder="要帶什麼、怎麼集合、聯絡誰">${esc(d.desc)}</textarea><div class="help desc-help"><span>說明裡的網址會變成可以點的連結。超過 ${DESC_CARD} 字時，圖卡上只放前段，點「看完整說明」看全文。</span><b id="desc-count"></b></div></label>
       <div class="field"><span>圖片</span>
         <div class="img-pick">
           <label class="btn plain small">上傳圖片<input type="file" accept="image/*" id="img-file" hidden></label>
@@ -1056,9 +1060,11 @@ function bindEventForm(d) {
   document.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
     d[el.dataset.k] = el.value;
     if (el.dataset.k === 'image') $('img-clear').hidden = !d.image;
+    if (el.dataset.k === 'desc') descCount(d);
     preview(d);
   }));
   bindPlace(d);
+  descCount(d);
   $('img-file').onchange = e => uploadPicked(e.target, d);
   $('img-clear').onclick = () => { d.image = ''; document.querySelector('[data-k=image]').value = ''; $('img-clear').hidden = true; preview(d); };
   const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); };
@@ -1107,6 +1113,19 @@ function drawRemind(d) {
     try { NOTIFY_EMAIL = (await api('setNotifyEmail', { email: v })).notifyEmail; editingMail = false; toast(NOTIFY_EMAIL ? '已儲存，提醒會寄到這個信箱' : '已清空，不會寄 Email'); drawRemind(d); }
     catch (e) { toast(e.message); b.disabled = false; }
   };
+}
+
+const DESC_MAX = 1000, DESC_CARD = 300; // 說明最多 1000 字；圖卡上最多放 300 字
+const descCount = d => { const n = (d.desc || '').length, el = $('desc-count'); if (el) { el.textContent = `${n}／${DESC_MAX}`; el.style.color = n > DESC_CARD ? 'var(--stamp)' : ''; } };
+/** 圖卡上的說明：太長就切在換行或空白處，不切斷網址 */
+function cardDesc(desc) {
+  const s = String(desc || '').trim();
+  if (s.length <= DESC_CARD) return { text: s, cut: false };
+  let cut = s.slice(0, DESC_CARD);
+  for (const m of s.matchAll(URL_RE)) if (m.index < DESC_CARD && m.index + m[0].length > DESC_CARD) cut = s.slice(0, m.index);
+  const br = Math.max(cut.lastIndexOf('\n'), cut.lastIndexOf('。'));
+  if (br > DESC_CARD * 0.6) cut = cut.slice(0, br + 1);
+  return { text: cut.trim() + '…', cut: true };
 }
 
 /* ---------- 地點＋Google 地圖位置 ----------
@@ -1258,7 +1277,8 @@ function fmtRange(start, end) {
 }
 
 function preview(d) {
-  $('pv').innerHTML = ticket({ ...d, title: d.title.trim(), date: fmtRange(d.start, d.end) || d.date },
+  const cd = cardDesc(d.desc);
+  $('pv').innerHTML = ticket({ ...d, desc: cd.text, title: d.title.trim(), date: fmtRange(d.start, d.end) || d.date },
     `<div class="stub"><span class="notch"></span><span class="fake-btn">${esc(d.button.trim() || '我要登記')}</span></div>`);
 }
 
@@ -1933,7 +1953,11 @@ function buildFlex(ev) {
   if (+ev.capacity) meta.push(flexInfo('名額', ev.capacity + ' 人', t));
   if (shortTime(ev.deadline)) meta.push(flexInfo('截止', shortTime(ev.deadline), t));
   if (meta.length) body.push({ type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm', contents: meta });
-  if (ev.desc) body.push(flexDesc(ev.desc, t));
+  if (ev.desc) {
+    const cd = cardDesc(ev.desc);
+    body.push(flexDesc(cd.text, t));
+    if (cd.cut) body.push({ type: 'text', text: '看完整說明 ›', size: 'sm', color: t.btn, weight: 'bold', margin: 'sm', action: { type: 'uri', label: '看完整說明', uri: liffUrl(ev.id) } });
+  }
 
   const bubble = {
     type: 'bubble',
