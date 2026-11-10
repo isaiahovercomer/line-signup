@@ -106,6 +106,10 @@
   .field input, .field textarea { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; min-height: 50px; }
   .field textarea { min-height: 96px; resize: vertical; }
   .field input:focus, .field textarea:focus { outline: none; border-color: var(--ink); }
+  .map-pick small { font-weight: 400; color: var(--ink-2); }
+  .map-row { display: flex; gap: 8px; align-items: stretch; }
+  .map-row input { flex: 1; min-width: 0; }
+  .map-row .btn.small { margin: 0; flex: none; white-space: nowrap; }
   .field .help { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .row2 > .field { min-width: 0; }
@@ -1006,7 +1010,14 @@ function eventForm(d) {
         ${f('start', '開始時間', 'type="datetime-local"')}
         ${f('end', '結束時間', 'type="datetime-local"', '選填')}
       </div>
-      ${f('place', '地點', 'placeholder="例如：一會所大會堂"', '圖卡上的地點可以點開 Google 地圖。要更準確，可在地點後面貼上 Google 地圖的分享連結。')}
+      <label class="field"><span>地點</span><input id="place-name" value="${esc(String(d.place || '').replace(URL_RE, '').replace(/\s+/g, ' ').trim())}" placeholder="例如：一會所大會堂"></label>
+      <div class="field map-pick"><span>地圖位置 <small>選填</small></span>
+        <div class="map-row">
+          <input id="place-url" type="url" inputmode="url" value="${esc((String(d.place || '').match(URL_RE) || [''])[0])}" placeholder="貼上 Google 地圖的分享連結">
+          <button type="button" class="btn plain small" id="map-open">到 Google 地圖找</button>
+        </div>
+        <div class="help" id="map-help"></div>
+      </div>
     </div>
     <div class="group"><h2>名額與截止</h2>
       <div class="row2">
@@ -1047,6 +1058,7 @@ function bindEventForm(d) {
     if (el.dataset.k === 'image') $('img-clear').hidden = !d.image;
     preview(d);
   }));
+  bindPlace(d);
   $('img-file').onchange = e => uploadPicked(e.target, d);
   $('img-clear').onclick = () => { d.image = ''; document.querySelector('[data-k=image]').value = ''; $('img-clear').hidden = true; preview(d); };
   const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); };
@@ -1095,6 +1107,40 @@ function drawRemind(d) {
     try { NOTIFY_EMAIL = (await api('setNotifyEmail', { email: v })).notifyEmail; editingMail = false; toast(NOTIFY_EMAIL ? '已儲存，提醒會寄到這個信箱' : '已清空，不會寄 Email'); drawRemind(d); }
     catch (e) { toast(e.message); b.disabled = false; }
   };
+}
+
+/* ---------- 地點＋Google 地圖位置 ----------
+   兩格合併存成「地名 網址」，後端不用多一個欄位；圖卡只顯示地名，點了開網址 */
+function bindPlace(d) {
+  const nameEl = $('place-name'), urlEl = $('place-url');
+  const sync = () => {
+    let url = urlEl.value.trim();
+    const m = url.match(URL_RE);
+    if (url && m) {
+      // Google 地圖分享常會連地名一起複製：「一會所大會堂 https://maps.app.goo.gl/…」
+      const rest = url.replace(m[0], '').replace(/\s+/g, ' ').trim();
+      if (rest && !nameEl.value.trim()) nameEl.value = rest;
+      url = m[0];
+    }
+    d.place = [nameEl.value.trim(), m ? url : ''].filter(Boolean).join(' ');
+    const p = placeInfo(d.place);
+    $('map-help').innerHTML = !urlEl.value.trim()
+      ? '沒貼的話，圖卡上點地點會用地名在 Google 地圖搜尋。要更準確：按「到 Google 地圖找」→ 選好地標 →「分享」→「複製連結」→ 貼回這裡。'
+      : m ? `✓ 圖卡上點地點會開這個位置　<a href="${esc(p.url)}" target="_blank" rel="noopener">先看看</a>`
+      : '<span style="color:var(--stamp)">這不是網址，請貼上 Google 地圖「分享」裡的連結</span>';
+    preview(d);
+  };
+  nameEl.addEventListener('input', sync);
+  urlEl.addEventListener('input', sync);
+  urlEl.addEventListener('change', () => { const m = urlEl.value.match(URL_RE); if (m) urlEl.value = m[0]; });
+  $('map-open').onclick = () => {
+    const q = nameEl.value.trim();
+    const url = q ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q) : 'https://www.google.com/maps';
+    // 在 LINE 裡用外部瀏覽器開，手機上會直接跳到 Google 地圖 App
+    if (!DEMO && liff.isInClient && liff.isInClient()) liff.openWindow({ url, external: true });
+    else window.open(url, '_blank', 'noopener');
+  };
+  sync();
 }
 
 const startDate = ev => { const t = (ev.start || '').replace(' ', 'T'); return t ? new Date(t) : null; };
