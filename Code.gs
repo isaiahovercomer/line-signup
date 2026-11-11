@@ -65,6 +65,12 @@ function doPost(e) {
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
         case 'createEvent':  out = { ok: true, event: createEvent(user, req.event || {}) }; break;
         case 'listEvents':   out = { ok: true, events: listEvents(user), templates: listTemplates(user), notifyEmail: getNotifyEmail(user) }; break;
+        case 'boot': {       // 平台首頁一次拿齊：我是誰＋活動列表＋範本＋提醒信箱；用 LINE 登入時順便發通行證（perf-boot-v1）
+          const isAdmin = isPublisher(user.userId);
+          out = { ok: true, me: { userId: user.userId, displayName: user.displayName, isAdmin }, events: listEvents(user, isAdmin), templates: listTemplates(user), notifyEmail: getNotifyEmail(user) };
+          if (!req.session) out.session = createSession(user);
+          break;
+        }
         case 'setNotifyEmail': out = { ok: true, notifyEmail: setNotifyEmail(user, req.email) }; break;
         case 'markReminded': own(); out = { ok: true, event: markReminded(req.eventId, req.offsets) }; break;
         case 'deleteTemplate': out = { ok: true, templates: deleteTemplate(user, req.title) }; break;
@@ -116,20 +122,38 @@ function createSession(user) {
     for (let i = data.length - 1; i >= 1; i--) if (data[i][3] instanceof Date && data[i][3] < now) sh.deleteRow(i + 1); // 順手清掉過期的
     sh.appendRow([token, user.userId, user.displayName, exp, now]);
   });
+  cacheSession(token, user.userId, user.displayName, exp);
   return { token, expires: exp.getTime() };
 }
 
+/* 通行證查詢結果放在 CacheService 10 分鐘，每次請求不用整張「登入」表讀一遍；刪除通行證時一併清掉 */
+const SESSION_CACHE_SEC = 600;
+const sessionKey = token => 'sess:' + token;
+function cacheSession(token, userId, displayName, exp) {
+  try { CacheService.getScriptCache().put(sessionKey(token), JSON.stringify({ u: userId, n: displayName, e: exp.getTime() }), SESSION_CACHE_SEC); } catch (e) {}
+}
+function uncacheSessions(tokens) {
+  try { if (tokens.length) CacheService.getScriptCache().removeAll(tokens.map(sessionKey)); } catch (e) {}
+}
+
 function userFromSession(token) {
-  const data = sessionSheet().getDataRange().getValues();
   const now = new Date();
+  let hit = null;
+  try { hit = JSON.parse(CacheService.getScriptCache().get(sessionKey(token)) || 'null'); } catch (e) {}
+  if (hit && hit.e > now.getTime()) return { userId: String(hit.u), displayName: String(hit.n) };
+  const data = sessionSheet().getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === token && data[i][3] instanceof Date && data[i][3] > now) return { userId: String(data[i][1]), displayName: String(data[i][2]) };
+    if (data[i][0] === token && data[i][3] instanceof Date && data[i][3] > now) {
+      cacheSession(token, String(data[i][1]), String(data[i][2]), data[i][3]);
+      return { userId: String(data[i][1]), displayName: String(data[i][2]) };
+    }
   }
   throw new Error('SESSION_EXPIRED');
 }
 
 function deleteSession(token) {
   if (!token) return;
+  uncacheSessions([token]);
   withLock(() => {
     const sh = sessionSheet(), data = sh.getDataRange().getValues();
     for (let i = data.length - 1; i >= 1; i--) if (data[i][0] === token) sh.deleteRow(i + 1);
@@ -397,11 +421,11 @@ function deleteTemplate(user, title) {
 }
 
 /** 管理員看到全部活動，其他人只看到自己建立的 */
-function listEvents(user) {
+function listEvents(user, isAdmin) {
   const log = rows(SH.LOG);
   const counts = {};
   log.forEach(r => { counts[r[1]] = (counts[r[1]] || 0) + 1; });
-  const all = isPublisher(user.userId);
+  const all = isAdmin === undefined ? isPublisher(user.userId) : isAdmin;
   return rows(SH.EVENTS).filter(r => all || creatorOf(r) === user.userId).reverse().slice(0, 50).map(r => {
     const ev = rowToEvent(r);
     ev.creator = String(r[EV.CREATOR] || '').replace(/\s*\(U[0-9a-f]+\)\s*$/, '');
@@ -586,7 +610,9 @@ function deleteMyData(user) {
     };
     roster = del(SH.ROSTER, r => String(r[2]).trim() === user.userId);
     logs = del(SH.LOG, r => String(r[5]) === user.userId);
-    sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId); // 通行證也一併刪除
+    const tokens = [];
+    sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId && tokens.push(String(r[0]))); // 通行證也一併刪除
+    uncacheSessions(tokens);
     templateSheet(); del(TEMPLATE_SHEET, r => String(r[0]) === user.userId); // 自己建立的範本也一併刪除
     notifySheet(); del(NOTIFY_SHEET, r => String(r[0]) === user.userId);      // 提醒通知信箱也一併刪除
     return { roster, logs };
