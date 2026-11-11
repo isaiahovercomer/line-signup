@@ -231,9 +231,32 @@ function stateOf(ev, count) {
 function logOf(eventId) { return rows(SH.LOG).filter(r => String(r[1]) === String(eventId)); }
 
 function withStats(ev, log) {
-  const count = (log || logOf(ev.id)).length;
-  return Object.assign({}, ev, { count, state: stateOf(ev, count) });
+  log = log || logOf(ev.id);
+  const count = log.length;
+  return Object.assign({}, ev, { count, guests: guestsOf(ev, log), state: stateOf(ev, count) });
 }
+
+/* 「同行人數」「帶幾位家人」「兒童姓名」這類題目：換算成人數，加到總人數 */
+const GUEST_RE = /同行|攜伴|攜眷|陪同|朋友|家人|眷屬|親友|配偶|兒童|小孩|孩子|子女|帶.{0,4}(人|誰|幾)|人數|幾位|幾人/;
+const NONE_RE = /^(無|沒有|没有|沒|不|否|免|0|-|—|－|x|n\/?a|none|no)$/i;
+const ZH_NUM = { 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+/** 一個回答代表幾個人：「3」「大人2小孩1」「兩位」「王小明、李大華」「無」 */
+function countPeople(v) {
+  v = String(v || '').trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  if (!v || NONE_RE.test(v)) return 0;
+  const nums = v.match(/\d+/g);
+  if (nums) return Math.min(/歲/.test(v) ? (v.match(/歲/g) || []).length : nums.reduce((s, n) => s + +n, 0), 99); // 「小孩3歲、5歲」算 2 人
+  const zh = v.match(/^([一二兩三四五六七八九十])\s*(位|個|人|名)?/);
+  if (zh) return ZH_NUM[zh[1]];
+  return Math.min(v.split(/[、,，\/;；\s]+|和|及|與|跟/).filter(x => x.trim()).length, 30); // 填姓名：有幾個名字就算幾人
+}
+/** 所有「同行／家人／兒童／人數」這類題目加起來；活動沒有這類題目回傳 null */
+function guestsFrom(questions, answersList) {
+  const idx = (questions || []).map((q, i) => GUEST_RE.test(String((q && q.q) || q)) ? i : -1).filter(i => i >= 0);
+  if (!idx.length) return null;
+  return answersList.reduce((s, ans) => s + idx.reduce((t, i) => t + countPeople((ans || [])[i]), 0), 0);
+}
+function guestsOf(ev, log) { return guestsFrom(ev.questions, log.map(answersOf)); }
 
 function cleanEventInput(ev) {
   const title = String(ev.title || '').trim();

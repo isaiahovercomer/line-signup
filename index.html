@@ -269,6 +269,7 @@
   .stat .bar { height: 8px; background: var(--sky-2); border-radius: 4px; margin: 6px 0 4px; overflow: hidden; }
   .stat .bar i { display: block; height: 100%; background: var(--marigold); border-radius: 4px; }
   .stat .who { color: var(--ink-2); font-size: 13px; word-break: break-word; }
+  .stat ul.who { margin: 6px 0 0; padding-left: 18px; }
   .chart { display: flex; align-items: flex-end; gap: 6px; height: 150px; margin-top: 12px; overflow-x: auto; }
   .chart .col { flex: 1; min-width: 28px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
   .chart .track { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-height: 0; }
@@ -480,7 +481,8 @@ function demoEvent(e) {
   if (!e.open) state = 'closed';
   else if (e.deadline && new Date(e.deadline.replace(' ', 'T')) < new Date('2026-11-06T08:00')) state = 'ended';
   else if (e.capacity && count >= e.capacity) state = 'full';
-  return { mine: true, ...e, count, state };
+  const guests = guestsFrom(e.questions, (demo.log[e.id] || []).map(r => r[3]));
+  return { mine: true, ...e, count, guests, state };
 }
 const demoMembers = () => demo.members.map((m, i) => ({ ...m, row: i + 2 }));
 if (DEMO) window.liff = { isInClient: () => false, closeWindow() {}, isApiAvailable: () => false, getContext: () => null };
@@ -755,11 +757,11 @@ function showResult(r, eventId) {
   const cap = ev.capacity ? `／${ev.capacity}` : '';
   switch (r.status) {
     case 'registered':
-      done('已登記', '', `${esc(r.name)}，登記完成。`, `目前 ${ev.count || (r.names || []).length} 人登記${cap}。`);
+      done('已登記', '', `${esc(r.name)}，登記完成。`, `${headcount(ev, ev.count || (r.names || []).length)}${cap}。`);
       postRoll(ev, r.names || [r.name], r.name);
       break;
     case 'already':
-      done('已登記', '', `${esc(r.name)}，你之前就登記了。`, `目前 ${ev.count || (r.names || []).length} 人登記${cap}。`);
+      done('已登記', '', `${esc(r.name)}，你之前就登記了。`, `${headcount(ev, ev.count || (r.names || []).length)}${cap}。`);
       addRepostButton(ev, r.names, r.name);
       if ((ev.questions || []).length) addEditAnswersButton(eventId, ev, r.name, r.answers || []);
       addCancelButton(eventId, r.name);
@@ -768,11 +770,11 @@ function showResult(r, eventId) {
     case 'ended':       done('截止', 'ink', '登記時間已經過了。', '有問題請直接聯絡主辦人。'); break;
     case 'closed':      done('截止', 'ink', '這個活動已經停止登記。', '有問題請直接聯絡主辦人。'); break;
     case 'updated':
-      done('已登記', '', `${esc(r.name)}，回答已更新。`, `目前 ${ev.count} 人登記${cap}。`);
+      done('已登記', '', `${esc(r.name)}，回答已更新。`, `${headcount(ev)}${cap}。`);
       if (r.names) postRoll(ev, r.names, r.name, '更新了回答');
       break;
     case 'cancelled':
-      done('已取消', 'ink', `${esc(r.name)}，已取消你的登記。`, `目前 ${ev.count} 人登記${cap}。想參加可以再按一次圖卡登記。`);
+      done('已取消', 'ink', `${esc(r.name)}，已取消你的登記。`, `${headcount(ev)}${cap}。想參加可以再按一次圖卡登記。`);
       if (r.names) postRoll(ev, r.names, r.name, '取消了登記');
       break;
     case 'not_registered': done('未登記', 'ink', '你目前沒有登記這個活動。', '想參加請再按一次圖卡登記。'); break;
@@ -1423,7 +1425,7 @@ function renderSent() {
         <div class="d">${esc(e.date || '未填時間')}${ME.isAdmin && e.creator ? `　由 ${esc(e.creator)} 建立` : ''}</div>
         ${isPast(e) ? '<span class="state over">活動已結束</span>' : stateTag(e.state)}${dueReminders(e).length ? ' <span class="state remind">該發提醒</span>' : ''}
       </div>
-      <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人登記'}</small></div>
+      <div class="count"><b>${e.count}</b><small>${e.capacity ? `／${e.capacity} 人` : '人登記'}${hasGuests(e) ? `<br>共 ${totalOf(e)} 人` : ''}</small></div>
     </button>`).join('')}</div>`;
   panel.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
     if (!SELECTING) return go({ view: 'detail', id: b.dataset.open });
@@ -1487,7 +1489,7 @@ function drawDetail(d, keepScroll) {
 
   view(`
     <div class="subbar"><button class="back" id="back">‹ 已發布</button><button class="btn plain small" id="edit">編輯</button></div>
-    ${ticket(ev, `<div class="stub tally"><b>${ev.count}</b><span>${ev.capacity ? `／${ev.capacity} 人` : '人登記'}</span>${stateTag(ev.state)}</div>`)}
+    ${ticket(ev, `<div class="stub tally"><b>${ev.count}</b><span>${ev.capacity ? `／${ev.capacity} 人` : '人登記'}${hasGuests(ev) ? `<br><small>＋同行 ${ev.guests} 位，共 ${totalOf(ev)} 人</small>` : ''}</span>${stateTag(ev.state)}</div>`)}
     <div class="btn-row">
       <button class="btn send" id="share">發送到群組</button>
       <button class="btn plain" id="toggle">${ev.open ? '停止登記' : '重新開放'}</button>
@@ -1596,9 +1598,15 @@ function statsHtml(ev, list) {
     if (!filled.length) return `<div class="stat">${head('')}<p class="meta">還沒有人回答。</p></div>`;
 
     // 問人數的題目，而且回答都是數字：顯示合計
-    if (isCountQuestion(q) && filled.every(x => num(x.v) !== null)) {
+    if (isCountQuestion(q) && !(GUEST_RE.test(q) && !opts.length) && filled.every(x => num(x.v) !== null)) {
       const sum = filled.reduce((s, x) => s + num(x.v), 0);
       return `<div class="stat">${head('')}<p class="sum"><b>${+sum.toFixed(2)}</b><span>合計</span></p></div>`;
+    }
+    // 同行、家人、兒童這類題目：換算人數合計，並列出每個人帶了誰
+    if (GUEST_RE.test(q) && !opts.length) {
+      const sum = filled.reduce((s, x) => s + countPeople(x.v), 0);
+      return `<div class="stat">${head('')}<p class="sum"><b>${sum}</b><span>人，已加到最上面的總人數</span></p>
+        <ul class="who">${filled.map(x => `<li>${esc(x.name)}：${esc(x.v)}（${countPeople(x.v)} 人）</li>`).join('')}</ul></div>`;
     }
 
     // 其他題目：依答案分組，每組下面列出名字
@@ -1993,7 +2001,7 @@ function buildRemindFlex(ev) {
   if (ev.place) meta.push(flexPlace(ev.place, t));
   const dl = (ev.deadline || '').replace(' ', 'T');
   if (dl && new Date(dl) > new Date()) meta.push(flexInfo('截止', shortTime(ev.deadline), t));
-  const count = `目前 ${ev.count || 0} 人登記${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
+  const count = `${headcount(ev)}${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
   const open = ev.state === 'open' || !ev.state;
   return {
     type: 'flex',
@@ -2015,6 +2023,31 @@ function buildRemindFlex(ev) {
 }
 
 /** 接龍卡：列出目前所有登記的人，一人一行、序號用色調粗體，下面附登記按鈕 */
+/* 「同行人數」「帶幾位家人」「兒童姓名」這類題目：換算成人數（後端 Code.gs 有同樣的規則） */
+const GUEST_RE = /同行|攜伴|攜眷|陪同|朋友|家人|眷屬|親友|配偶|兒童|小孩|孩子|子女|帶.{0,4}(人|誰|幾)|人數|幾位|幾人/;
+const NONE_RE = /^(無|沒有|没有|沒|不|否|免|0|-|—|－|x|n\/?a|none|no)$/i;
+const ZH_NUM = { 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+/** 一個回答代表幾個人：「3」「大人2小孩1」「兩位」「王小明、李大華」「無」 */
+function countPeople(v) {
+  v = String(v || '').trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  if (!v || NONE_RE.test(v)) return 0;
+  const nums = v.match(/\d+/g);
+  if (nums) return Math.min(/歲/.test(v) ? (v.match(/歲/g) || []).length : nums.reduce((s, n) => s + +n, 0), 99); // 「小孩3歲、5歲」算 2 人
+  const zh = v.match(/^([一二兩三四五六七八九十])\s*(位|個|人|名)?/);
+  if (zh) return ZH_NUM[zh[1]];
+  return Math.min(v.split(/[、,，\/;；\s]+|和|及|與|跟/).filter(x => x.trim()).length, 30); // 填姓名：有幾個名字就算幾人
+}
+/** 所有「同行／家人／兒童／人數」這類題目加起來；活動沒有這類題目回傳 null */
+function guestsFrom(questions, answersList) {
+  const idx = (questions || []).map((q, i) => GUEST_RE.test(String((q && q.q) || q)) ? i : -1).filter(i => i >= 0);
+  if (!idx.length) return null;
+  return answersList.reduce((s, ans) => s + idx.reduce((t, i) => t + countPeople((ans || [])[i]), 0), 0);
+}
+/** 人數說明：有「同行人數」題目時，算出實際參加人數 */
+const hasGuests = ev => typeof ev.guests === 'number' && ev.guests > 0;
+const totalOf = ev => (ev.count || 0) + (hasGuests(ev) ? ev.guests : 0);
+const headcount = (ev, n = ev.count || 0) => hasGuests(ev) ? `登記 ${n} 人＋同行 ${ev.guests} 位＝共 ${n + ev.guests} 人` : `目前 ${n} 人登記`;
+
 function buildRollFlex(ev, names, who, verb = '登記了') {
   const t = themeOf(ev);
   const n = names.length;
@@ -2028,7 +2061,7 @@ function buildRollFlex(ev, names, who, verb = '登記了') {
   if (ev.date) rollMeta.push(flexInfo('時間', ev.date, t));
   if (ev.place) rollMeta.push(flexPlace(ev.place, t));
   if (shortTime(ev.deadline)) rollMeta.push(flexInfo('截止', shortTime(ev.deadline), t));
-  const count = `目前 ${n} 人${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
+  const count = `${headcount(ev, n)}${ev.capacity ? `／名額 ${ev.capacity}` : ''}`;
   return {
     type: 'flex',
     altText: `${who} ${verb}「${ev.title}」，${count}`.slice(0, 400),
