@@ -1,6 +1,7 @@
 // 安裝到手機桌面用的 Service Worker。
-// 一律先抓網路上的最新版，抓不到（離線）才用上次存下來的，所以更新網頁後不會卡在舊版。
-const CACHE = 'signup-v3';
+// 網頁本體（app shell）先用上次存下來的立刻打開，同時在背景抓最新版存起來，下次打開就是新版。
+// 後端（Apps Script）與 LINE 都是外部網址，不經過這裡、不會被快取。
+const CACHE = 'signup-v4';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg'];
 
 self.addEventListener('install', e => {
@@ -21,9 +22,11 @@ self.addEventListener('fetch', e => {
     e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res; })));
     return;
   }
-  e.respondWith(
-    fetch(e.request)
-      .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res; })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }))
-  );
+  const key = url.origin + url.pathname; // 網址參數（?event=…）不同也是同一個頁面，只存一份
+  const fresh = fetch(e.request).then(res => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(key, copy)); }
+    return res;
+  });
+  e.waitUntil(fresh.catch(() => {}));
+  e.respondWith(caches.match(key).then(hit => hit || fresh));
 });
