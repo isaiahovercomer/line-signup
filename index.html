@@ -54,7 +54,10 @@
 
   /* ---------- 頂部 ---------- */
   header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 -16px; padding: calc(22px + env(safe-area-inset-top)) 16px 18px; background: var(--chrome); color: var(--chrome-fg); border-bottom: 3px solid var(--marigold); }
-  header.top .brand { display: flex; align-items: center; gap: 12px; }
+  header.top .brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; border-radius: 12px; -webkit-tap-highlight-color: transparent; }
+  header.top .brand:hover h1 { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+  header.top .brand:active { opacity: .7; }
+  header.top .brand:focus-visible { outline: 2px solid var(--marigold); outline-offset: 4px; }
   header.top .logo { width: 44px; height: 44px; flex: none; border-radius: 10px; }
   header.top h1 { font-family: var(--serif); font-weight: 900; font-size: 24px; letter-spacing: .06em; margin: 0; color: var(--chrome-fg); }
   header.top .who { color: var(--chrome-muted); font-size: 14px; white-space: nowrap; }
@@ -968,7 +971,7 @@ function render() {
   if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
   const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
   view(`
-    <header class="top"><div class="brand"><img class="logo" src="icons/icon.svg?v=3" alt="活動登記" width="44" height="44"><h1>建立活動登記圖卡</h1></div><button class="help" id="help" type="button" aria-label="使用教學">?</button></header>
+    <header class="top"><a class="brand" href="./" id="home-link" aria-label="回到首頁"><img class="logo" src="icons/icon.svg?v=3" alt="" width="44" height="44"><h1>建立活動登記圖卡</h1></a><button class="help" id="help" type="button" aria-label="使用教學">?</button></header>
     ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新活動</button>
@@ -980,6 +983,8 @@ function render() {
     ${dock}`);
   document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; SELECTING = false; SELECTED.clear(); render(); });
   $('help').onclick = () => startTour(TOUR_STEPS);
+  // 點左上角圖示或標題回到首頁（新活動），保留已填的內容；不重新載入
+  $('home-link').onclick = e => { e.preventDefault(); if (TOUR) return; SELECTING = false; TAB = 'new'; go({ view: 'tabs' }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   if ($('install-link')) $('install-link').onclick = e => { e.preventDefault(); startInstall(); };
   if (TAB === 'new') renderCompose();
   else if (TAB === 'sent') renderSent();
